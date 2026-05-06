@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Next.js
+.next/
+out/
+
+# Build outputs
+build/
+dist/
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+bin/
+gen/
+
+# Gradle
+.gradle/
+android/app/build/
+android/.gradle/
+android/build/
+capacitor-cordova-android-plugins/
+
+# OS Files
+.DS_Store
+Thumbs.db
+*.log
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# Local config
+local.properties
+.env
+.env*.local
+
+# Capacitor
+app/src/main/assets/public
+app/src/main/assets/capacitor.config.json
+app/src/main/assets/capacitor.plugins.json
+app/src/main/res/xml/config.xml
+
+# Electron
+electron/node_modules/
+electron/dist/
+electron/build/
