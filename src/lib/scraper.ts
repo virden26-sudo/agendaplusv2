@@ -292,14 +292,14 @@ async function getSharedBrowser(puppeteer: any, executablePath: string, fs: type
 async function handleManualIntervention(page: any) {
     const isOktaUrl = (url: string) => /(^https?:\/\/)?[^/]*okta\.com/i.test(url);
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
     const isNavigationError = (error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
         return (
-            message.includes("Execution context was destroyed") ||
-            message.includes("Cannot find context") ||
-            message.includes("Target closed") ||
-            message.includes("Session closed")
+            message.includes("execution context was destroyed") ||
+            message.includes("cannot find context") ||
+            message.includes("target closed") ||
+            message.includes("session closed") ||
+            message.includes("detached frame")
         );
     };
 
