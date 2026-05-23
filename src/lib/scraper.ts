@@ -183,7 +183,7 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
                     await activePage.goto(discussionUrl, {
                         waitUntil: 'networkidle2',
                         timeout: 15000
-                    }).catch(e => console.warn("D2L Nav failed", e));
+                    }).catch((e: any) => console.warn("D2L Nav failed", e));
                 }
             } catch (e) {
                 console.warn("GenesisAI Scraper: D2L Discussion targeting failed", e);

@@ -7,6 +7,7 @@ import {Textarea} from "@/components/ui/textarea";
 import {useToast} from "@/hooks/use-toast";
 import {ExternalLink, Loader2, Sparkles} from "lucide-react";
 import {useGrades} from "@/context/grades-context";
+import {getApiUrl} from "@/lib/api-config";
 import type {Course} from "@/ai/schemas/course";
 
 type ImportGradesDialogProps = {
@@ -48,7 +49,7 @@ export function ImportGradesDialog({open, onOpenChange}: ImportGradesDialogProps
         }
         setIsParsing(true);
         try {
-            const response = await fetch('/api/parse-grades', {
+            const response = await fetch(getApiUrl('/api/parse-grades'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

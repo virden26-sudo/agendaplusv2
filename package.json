@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 9002 --webpack",
     "build": "next build --webpack",
-    "start": "next dev -p 9002 --webpack",
+    "start": "npm --prefix electron run electron:start",
     "RunIt": "next dev -p 9002 --webpack",
     "electron:start-live": "npm --prefix electron run electron:start-live",
     "lint": "eslint .",

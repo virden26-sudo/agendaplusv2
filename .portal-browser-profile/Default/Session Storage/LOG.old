@@ -1,3 +1,6 @@
-2026/05/09-17:45:42.528 b270 Reusing MANIFEST C:\AgendaPlusv2\.portal-browser-profile\Default\Session Storage/MANIFEST-000001
-2026/05/09-17:45:42.612 b270 Recovering log #3
-2026/05/09-17:45:42.651 b270 Reusing old log C:\AgendaPlusv2\.portal-browser-profile\Default\Session Storage/000003.log 
+2026/05/10-23:01:02.473 26e0 Reusing MANIFEST C:\AgendaPlusv2\.portal-browser-profile\Default\Session Storage/MANIFEST-000001
+2026/05/10-23:01:02.483 26e0 Recovering log #3
+2026/05/10-23:01:02.491 26e0 Reusing old log C:\AgendaPlusv2\.portal-browser-profile\Default\Session Storage/000003.log 
+2026/05/10-23:01:25.184 26e0 Level-0 table #5: started
+2026/05/10-23:01:25.188 26e0 Level-0 table #5: 11971 bytes OK
+2026/05/10-23:01:25.190 26e0 Delete type=0 #3

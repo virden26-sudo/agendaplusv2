@@ -1,22 +1,19 @@
-import {differenceInDays, formatDistanceToNowStrict} from 'date-fns';
+import { differenceInDays, formatDistanceToNowStrict } from 'date-fns';
 
 export const getPriorityBadgeVariant = (priority: 'low' | 'medium' | 'high') => {
-    switch (priority) {
-        case 'high':
-            return 'destructive';
-        case 'medium':
-            return 'default';
-        default:
-            return 'secondary';
+    switch(priority) {
+      case 'high': return 'destructive';
+      case 'medium': return 'default';
+      default: return 'secondary';
     }
 }
 
 export const getDueDateInfo = (dueDate: Date) => {
     const days = differenceInDays(dueDate, new Date());
-    if (days < 0) return {text: "Overdue", className: "text-destructive font-semibold"};
-    if (days < 1) return {text: "Due today", className: "text-accent-foreground font-semibold"};
-    if (days < 2) return {text: "Due tomorrow", className: "text-foreground font-semibold"};
-    return {text: `Due in ${formatDistanceToNowStrict(dueDate)}`, className: "text-muted-foreground"};
+    if (days < 0) return { text: "Overdue", className: "text-destructive font-semibold" };
+    if (days < 1) return { text: "Due today", className: "text-accent-foreground font-semibold" };
+    if (days < 2) return { text: "Due tomorrow", className: "text-foreground font-semibold" };
+    return { text: `Due in ${formatDistanceToNowStrict(dueDate)}`, className: "text-muted-foreground" };
 }
 
 export const getAssignmentIcon = (title: string) => {

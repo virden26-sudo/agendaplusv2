@@ -39,7 +39,9 @@ export function PortalLogin({ portalUrl, isSyncing, onComplete }: PortalLoginPro
   }, [username, password, onComplete, isSyncing]);
 
   React.useEffect(() => {
-    resetTimer();
+    const timer = setTimeout(() => {
+      resetTimer();
+    }, 0);
     
     const handleActivity = () => resetTimer();
     
@@ -50,6 +52,7 @@ export function PortalLogin({ portalUrl, isSyncing, onComplete }: PortalLoginPro
     }
 
     return () => {
+      clearTimeout(timer);
       if (timerRef.current) clearInterval(timerRef.current);
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("keydown", handleActivity);

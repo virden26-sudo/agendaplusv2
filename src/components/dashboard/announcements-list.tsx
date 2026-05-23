@@ -1,13 +1,14 @@
+
 "use client";
 
-import {usePortal} from "@/context/portal-context";
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/components/ui/card";
-import {Badge} from "@/components/ui/badge";
-import {Calendar as CalendarIcon, CircleOff, Megaphone} from "lucide-react";
-import {format} from "date-fns";
+import { usePortal } from "@/context/portal-context";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Megaphone, Calendar as CalendarIcon, CircleOff } from "lucide-react";
+import { format } from "date-fns";
 
 export function AnnouncementsList() {
-    const {announcements, loading} = usePortal();
+    const { announcements, loading } = usePortal();
 
     if (loading) {
         return <div>Loading announcements...</div>;
@@ -18,7 +19,7 @@ export function AnnouncementsList() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-gradient flex items-center gap-2">
-                        <Megaphone className="size-5"/>
+                        <Megaphone className="size-5" />
                         Latest Announcements
                     </CardTitle>
                     <CardDescription>Stay updated with the latest news from your courses.</CardDescription>
@@ -38,7 +39,7 @@ export function AnnouncementsList() {
                                         </div>
                                     </div>
                                     <div className="flex items-center text-xs text-muted-foreground mb-2">
-                                        <CalendarIcon className="mr-1 size-3"/>
+                                        <CalendarIcon className="mr-1 size-3" />
                                         {format(announcement.date, "PPP")}
                                     </div>
                                     <p className="text-sm text-muted-foreground line-clamp-3">
@@ -48,9 +49,8 @@ export function AnnouncementsList() {
                             ))}
                         </div>
                     ) : (
-                        <div
-                            className="flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
-                            <CircleOff className="size-10 mb-4"/>
+                        <div className="flex flex-col items-center justify-center text-center p-8 text-muted-foreground">
+                            <CircleOff className="size-10 mb-4" />
                             <p className="font-semibold">No announcements found.</p>
                         </div>
                     )}

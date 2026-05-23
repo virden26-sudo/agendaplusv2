@@ -5,7 +5,7 @@ name: Node.js Package
 
 on:
   release:
-    types: [ created ]
+    types: [created]
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}
-                             - name: Download a Build Artifact
+            - name: Download a Build Artifact
   uses: actions/download-artifact@v7.0.0
   with:
     # Name of the artifact to download. If unspecified, all artifacts for the run are downloaded.

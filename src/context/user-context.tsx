@@ -8,6 +8,8 @@ interface UserContextType {
     setUser: (user: User | null) => void;
     portalUrl: string;
     setPortalUrl: (url: string) => void;
+    backendUrl: string;
+    setBackendUrl: (url: string) => void;
     isUserLoaded: boolean;
 }
 
@@ -17,6 +19,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({children}: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [portalUrl, setPortalUrl] = useState("");
+    const [backendUrl, setBackendUrl] = useState("");
     const [isUserLoaded, setIsUserLoaded] = useState(false);
 
     useEffect(() => {
@@ -24,13 +27,16 @@ export function UserProvider({children}: { children: ReactNode }) {
             try {
                 const storedUser = localStorage.getItem("agendaUser");
                 const storedPortalUrl = localStorage.getItem("studentPortalUrl");
+                const storedBackendUrl = localStorage.getItem("backendUrl");
 
                 setUser(storedUser ? (JSON.parse(storedUser) as User) : null);
                 setPortalUrl(storedPortalUrl || "");
+                setBackendUrl(storedBackendUrl || "");
             } catch (error) {
                 console.error("Failed to parse user from local storage", error);
                 setUser(null);
                 setPortalUrl("");
+                setBackendUrl("");
             } finally {
                 setIsUserLoaded(true);
             }
@@ -53,12 +59,19 @@ export function UserProvider({children}: { children: ReactNode }) {
         setPortalUrl(url);
     };
 
+    const handleSetBackendUrl = (url: string) => {
+        localStorage.setItem("backendUrl", url);
+        setBackendUrl(url);
+    };
+
     return (
         <UserContext.Provider value={{
             user,
             setUser: handleSetUser,
             portalUrl,
             setPortalUrl: handleSetPortalUrl,
+            backendUrl,
+            setBackendUrl: handleSetBackendUrl,
             isUserLoaded
         }}>
             {children}

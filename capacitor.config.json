@@ -1,0 +1,6 @@
+{
+  "appId": "com.virden.agendaplus",
+  "appName": "Agenda_plus",
+  "webDir": "out",
+  "bundledWebRuntime": false
+}

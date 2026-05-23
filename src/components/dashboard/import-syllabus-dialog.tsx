@@ -26,7 +26,8 @@ import {
     Upload
 } from "lucide-react";
 import {useAssignments} from "@/context/assignments-context";
-import type {ParsedAssignment} from "@/lib/types";
+import {getApiUrl} from "@/lib/api-config";
+import type {ParsedAssignment} from "@/ai/schemas/assignment";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "@/components/ui/table";
 import {Input} from "@/components/ui/input";
 import {Badge} from "@/components/ui/badge";
@@ -81,7 +82,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
         setFileName(file.name);
         try {
             const dataUri = await fileToDataUri(file);
-            const response = await fetch('/api/parse-syllabus', {
+            const response = await fetch(getApiUrl('/api/parse-syllabus'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -121,7 +122,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
         setStep('parsing');
         setFileName("pasted text");
         try {
-            const response = await fetch('/api/parse-syllabus-text', {
+            const response = await fetch(getApiUrl('/api/parse-syllabus-text'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

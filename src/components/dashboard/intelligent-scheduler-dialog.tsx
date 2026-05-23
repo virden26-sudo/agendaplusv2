@@ -16,6 +16,7 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "../ui/c
 import {ScrollArea} from "../ui/scroll-area";
 import {Separator} from "../ui/separator";
 import {useAssignments} from "@/context/assignments-context";
+import {getApiUrl} from "@/lib/api-config";
 import * as ics from 'ics';
 import {addDays, parse, startOfWeek} from "date-fns";
 
@@ -73,7 +74,7 @@ export function IntelligentSchedulerDialog({open, onOpenChange}: IntelligentSche
         setIsLoading(true);
         setSuggestion(null);
         try {
-            const response = await fetch('/api/suggest-study-schedule', {
+            const response = await fetch(getApiUrl('/api/suggest-study-schedule'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

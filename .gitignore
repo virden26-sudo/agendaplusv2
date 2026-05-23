@@ -13,26 +13,11 @@ out/
 # Build outputs
 build/
 dist/
-*.apk
-*.aar
-*.ap_
-*.aab
-*.dex
-*.class
-bin/
-gen/
-
-# Gradle
 .gradle/
-android/app/build/
-android/.gradle/
-android/build/
-capacitor-cordova-android-plugins/
-
-# OS Files
-.DS_Store
-Thumbs.db
 *.log
+android_app/build/
+bin/
+obj/
 
 # IDEs
 .idea/

@@ -4,8 +4,7 @@ require('./rt/electron-rt');
 console.log('User Preload!');
 
 // Expose IPC to renderer process
-import {contextBridge, ipcRenderer} from 'electron';
-
-contextBridge.exposeInMainWorld('electronAPI', {
-    sendLogout: () => ipcRenderer.send('user-logout'),
-});
+import { ipcRenderer } from 'electron';
+(window as any).electronAPI = {
+  sendLogout: () => ipcRenderer.send('user-logout'),
+};

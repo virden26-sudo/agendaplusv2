@@ -76,7 +76,9 @@ import {useAssignments} from "@/context/assignments-context";
 import {useGrades} from "@/context/grades-context";
 import {usePortal} from "@/context/portal-context";
 import {useUser} from "@/context/user-context";
-import type {Announcement, Discussion, ParsedAssignment} from "@/lib/types";
+import {getApiUrl} from "@/lib/api-config";
+import type {Announcement, Discussion} from "@/lib/types";
+import type {ParsedAssignment} from "@/ai/schemas/assignment";
 
 const AddAssignmentDialog = dynamic(() => import("../dashboard/add-assignment-dialog").then(mod => mod.AddAssignmentDialog), {ssr: false});
 const ImportSyllabusDialog = dynamic(() => import("../dashboard/import-syllabus-dialog").then(mod => mod.ImportSyllabusDialog), {ssr: false});
@@ -100,7 +102,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
     const {assignments, addMultipleAssignments, loading: assignmentsLoading} = useAssignments();
     const {courses} = useGrades();
     const {announcements, addAnnouncements, addDiscussions, loading: portalLoading} = usePortal();
-    const {user, setUser, portalUrl, setPortalUrl, isUserLoaded} = useUser();
+    const {user, setUser, portalUrl, setPortalUrl, backendUrl, setBackendUrl, isUserLoaded} = useUser();
 
     const [addAssignmentOpen, setAddAssignmentOpen] = React.useState(false);
     const [schedulerOpen, setSchedulerOpen] = React.useState(false);
@@ -109,6 +111,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
     const [settingsOpen, setSettingsOpen] = React.useState(false);
     const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
     const [portalUrlInput, setPortalUrlInput] = React.useState("");
+    const [backendUrlInput, setBackendUrlInput] = React.useState("");
     const [portalUsernameInput, setPortalUsernameInput] = React.useState("");
     const [portalPasswordInput, setPortalPasswordInput] = React.useState("");
     const [isStartupSyncing, setIsStartupSyncing] = React.useState(false);
@@ -178,7 +181,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
 
         try {
             console.log("AppShell: Fetching /api/parse-portal...");
-            const response = await fetch("/api/parse-portal", {
+            const response = await fetch(getApiUrl("/api/parse-portal"), {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -194,12 +197,20 @@ export function AppShell({children}: { children: React.ReactNode }) {
 
             console.log(`AppShell: /api/parse-portal response status: ${response.status}`);
 
+            const responseText = await response.text();
+
             if (!response.ok) {
-                const text = await response.text();
-                throw new Error(`Portal sync failed (${response.status}): ${text.slice(0, 160)}`);
+                throw new Error(`Portal sync failed (${response.status}): ${responseText.slice(0, 160)}`);
             }
 
-            const result = (await response.json()) as PortalSyncResult;
+            let result: PortalSyncResult;
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error("AppShell: Portal sync parse error", parseError, responseText.slice(0, 100));
+                throw new Error("The AI service returned an invalid response. If you're running as a mobile app, ensure your backend is configured.");
+            }
+
             console.log("AppShell: Received result from /api/parse-portal", {
                 hasAssignments: !!result.assignments,
                 hasAnnouncements: !!result.announcements,
@@ -225,9 +236,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
             toast({
                 variant: "destructive",
                 title: isAborted ? "Portal Sync Timed Out" : "Portal Sync Failed",
-                description: isAborted
-                    ? "The monitored session took too long. Please try rescanning manually."
-                    : "The monitored browser session did not return usable portal data.",
+                description: error.message || "The monitored browser session did not return usable portal data.",
             });
         } finally {
             clearTimeout(timeoutId);
@@ -246,12 +255,20 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         const storedSessionReady = localStorage.getItem("portalSessionReady") === "true";
-        setHasPersistentPortalSession((prev) => prev === storedSessionReady ? prev : storedSessionReady);
+        
+        const sessionTimer = setTimeout(() => {
+            setHasPersistentPortalSession((prev) => prev === storedSessionReady ? prev : storedSessionReady);
+        }, 0);
 
         if (!user || !portalUrl) {
             console.log("AppShell: No user or portalUrl, opening onboarding");
-            setOnboardingOpen(true);
-            return;
+            const onboardingTimer = setTimeout(() => {
+                setOnboardingOpen(true);
+            }, 0);
+            return () => {
+                clearTimeout(sessionTimer);
+                clearTimeout(onboardingTimer);
+            };
         }
 
         const shouldStartupSync =
@@ -274,14 +291,18 @@ export function AppShell({children}: { children: React.ReactNode }) {
             shouldStartupSync
         });
 
+        let syncTimer: number | undefined;
         if (shouldStartupSync) {
             console.log("AppShell: Triggering startup sync");
-            const timeoutId = window.setTimeout(() => {
+            syncTimer = window.setTimeout(() => {
                 void runPortalSync("startup");
             }, 0);
-
-            return () => window.clearTimeout(timeoutId);
         }
+
+        return () => {
+            clearTimeout(sessionTimer);
+            if (syncTimer) window.clearTimeout(syncTimer);
+        };
     }, [announcements.length, assignments.length, assignmentsLoading, hasAttemptedStartupSync, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
 
     React.useEffect(() => {
@@ -300,11 +321,15 @@ export function AppShell({children}: { children: React.ReactNode }) {
 
     React.useEffect(() => {
         if (settingsOpen) {
-            setPortalUrlInput((prev) => prev === portalUrl ? prev : portalUrl);
-            setPortalUsernameInput((prev) => prev === (user?.portalUsername || "") ? prev : (user?.portalUsername || ""));
-            setPortalPasswordInput((prev) => prev === (user?.portalPassword || "") ? prev : (user?.portalPassword || ""));
+            const timer = setTimeout(() => {
+                setPortalUrlInput((prev) => prev === portalUrl ? prev : portalUrl);
+                setBackendUrlInput((prev) => prev === backendUrl ? prev : backendUrl);
+                setPortalUsernameInput((prev) => prev === (user?.portalUsername || "") ? prev : (user?.portalUsername || ""));
+                setPortalPasswordInput((prev) => prev === (user?.portalPassword || "") ? prev : (user?.portalPassword || ""));
+            }, 0);
+            return () => clearTimeout(timer);
         }
-    }, [settingsOpen, portalUrl, user?.portalUsername, user?.portalPassword]);
+    }, [settingsOpen, portalUrl, backendUrl, user?.portalUsername, user?.portalPassword]);
 
     const handleSettingsSave = () => {
         const nextUrl = portalUrlInput.trim();
@@ -313,6 +338,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         setPortalUrl(nextUrl);
+        setBackendUrl(backendUrlInput.trim());
         if (user) {
             setUser({
                 ...user,
@@ -641,6 +667,18 @@ export function AppShell({children}: { children: React.ReactNode }) {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="backend-url">AI Backend URL (Optional)</Label>
+                            <Input
+                                id="backend-url"
+                                placeholder="e.g. http://192.168.1.5:9002"
+                                value={backendUrlInput}
+                                onChange={(event) => setBackendUrlInput(event.target.value)}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                                Leave blank to use defaults. Use your computer&apos;s IP for mobile testing.
+                            </p>
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="portal-url">Student Portal URL</Label>
                             <Input

@@ -2,15 +2,12 @@
 
 ## Core Features:
 
-- Automatic Assignment Import: Automatically import assignments from various learning management systems (e.g., Canvas,
-  Blackboard, Moodle).
+- Automatic Assignment Import: Automatically import assignments from various learning management systems (e.g., Canvas, Blackboard, Moodle).
 - Grade Tracking: Track grades across all courses and display overall GPA.
 - Due Date Reminders: Send reminders for upcoming due dates via push notifications.
 - Calendar Integration: Integrate with the device's calendar to display assignments alongside other events.
-- Intelligent Scheduling Tool: Analyze the user's schedule and assignment workload to suggest optimal study times. A
-  tool powered by generative AI will reason about assignment difficulty and due dates to optimize scheduling.
-- Natural Language Assignment Input: Allow users to add assignments using natural language (e.g., 'Write essay due next
-  Friday'). The LLM automatically identifies the components of the task.
+- Intelligent Scheduling Tool: Analyze the user's schedule and assignment workload to suggest optimal study times. A tool powered by generative AI will reason about assignment difficulty and due dates to optimize scheduling.
+- Natural Language Assignment Input: Allow users to add assignments using natural language (e.g., 'Write essay due next Friday'). The LLM automatically identifies the components of the task.
 
 ## Style Guidelines:
 

@@ -1,0 +1,16 @@
+{
+  "name": "Agenda+",
+  "short_name": "Agenda+",
+  "description": "A smart agenda for students.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16 32x32 48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

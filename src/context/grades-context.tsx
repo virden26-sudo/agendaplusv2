@@ -1,63 +1,71 @@
 "use client";
 
-import React, {createContext, ReactNode, useContext, useEffect, useState} from 'react';
-import type {Course} from '@/ai/schemas/course';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import type { Course } from '@/ai/schemas/course';
+import { v4 as uuidv4 } from 'uuid';
 
 interface GradesContextType {
-    courses: Course[];
-    setCourses: (courses: Course[]) => void;
-    loading: boolean;
+  courses: Course[];
+  setCourses: (courses: Course[]) => void;
+  loading: boolean;
 }
 
 const GradesContext = createContext<GradesContextType | undefined>(undefined);
 
-export function GradesProvider({children}: { children: ReactNode }) {
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const timeoutId = window.setTimeout(() => {
-            try {
-                const storedGrades = localStorage.getItem('agendaGrades');
-                if (!storedGrades) {
-                    setCourses([]);
-                    return;
-                }
-
-                const parsed = JSON.parse(storedGrades) as Course[];
-                setCourses(Array.isArray(parsed) ? parsed : []);
-            } catch (error) {
-                console.error("Failed to parse grades from localStorage", error);
-                setCourses([]);
-            } finally {
-                setLoading(false);
-            }
-        }, 0);
-
-        return () => window.clearTimeout(timeoutId);
-    }, []);
-
-    useEffect(() => {
-        if (!loading) {
-            localStorage.setItem('agendaGrades', JSON.stringify(courses));
+export function GradesProvider({ children }: { children: ReactNode }) {
+  const [courses, setCourses] = useState<Course[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const storedGrades = localStorage.getItem('agendaGrades');
+        if (storedGrades) {
+          const parsed = JSON.parse(storedGrades);
+          if (Array.isArray(parsed)) {
+            return parsed.map((c: any) => ({
+              ...c,
+              id: c.id || uuidv4(),
+            }));
+          }
         }
-    }, [courses, loading]);
+      } catch (error) {
+        console.error("Failed to parse grades from localStorage", error);
+      }
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(true);
 
-    const handleSetCourses = (newCourses: Course[]) => {
-        setCourses(newCourses);
-    };
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
-    return (
-        <GradesContext.Provider value={{courses, setCourses: handleSetCourses, loading}}>
-            {children}
-        </GradesContext.Provider>
-    );
+  useEffect(() => {
+    if (!loading) {
+        localStorage.setItem('agendaGrades', JSON.stringify(courses));
+    }
+  }, [courses, loading]);
+
+  const handleSetCourses = (newCourses: Course[]) => {
+    const coursesWithIds = newCourses.map(c => ({
+        ...c,
+        id: c.id || uuidv4(),
+    }));
+    setCourses(coursesWithIds);
+  };
+
+  return (
+    <GradesContext.Provider value={{ courses, setCourses: handleSetCourses, loading }}>
+      {children}
+    </GradesContext.Provider>
+  );
 }
 
 export function useGrades() {
-    const context = useContext(GradesContext);
-    if (context === undefined) {
-        throw new Error('useGrades must be used within a GradesProvider');
-    }
-    return context;
+  const context = useContext(GradesContext);
+  if (context === undefined) {
+    throw new Error('useGrades must be used within a GradesProvider');
+  }
+  return context;
 }
