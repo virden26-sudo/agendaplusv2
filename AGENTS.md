@@ -33,7 +33,7 @@ Starts on port **9002** (not the default 3000). Uses Webpack bundler explicitly.
 
 ### Playwright E2E Tests
 
-The Playwright config (`playwright.config.ts`) expects:
+The Playwright config (`playwright.config.ts`) expects (note that these scripts are currently missing from `package.json`):
 - `npm run prod:build` and `npm run prod:serve` scripts (for production static build testing)
 - Base URL: `http://localhost:3000` (production mode)
 - Install browsers first: `npx playwright install --with-deps chromium`
