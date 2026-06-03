@@ -38,9 +38,12 @@ export default function PortalPage() {
         body: JSON.stringify({ portalText: portalText }),
       });
       
-      if (!response.ok) throw new Error("GenesisAi failed to process data.");
-      
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "GenesisAi failed to process data.");
+      }
+
       setExtractedData(result.assignments || []);
 
       toast({
@@ -49,10 +52,11 @@ export default function PortalPage() {
       });
     } catch (error) {
       console.error(error);
+      const message = error instanceof Error ? error.message : "Could not extract data from the provided text.";
       toast({
         variant: "destructive",
         title: "GenesisAi Error",
-        description: "Could not extract data from the provided text.",
+        description: message,
       });
     } finally {
       setIsProcessing(false);

@@ -7,11 +7,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const result = await parsePortalData(body);
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Portal parsing error:', error);
-    console.error('Error stack:', error.stack);
+    if (error instanceof Error) {
+      console.error('Error stack:', error.stack);
+    }
+
+    const message = error instanceof Error ? error.message : 'Failed to parse portal data';
     return NextResponse.json(
-      { error: 'Failed to parse portal data' },
+      { error: message },
       { status: 500 }
     );
   }

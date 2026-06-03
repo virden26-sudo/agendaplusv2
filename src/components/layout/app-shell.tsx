@@ -198,17 +198,16 @@ export function AppShell({children}: { children: React.ReactNode }) {
             console.log(`AppShell: /api/parse-portal response status: ${response.status}`);
 
             const responseText = await response.text();
-
-            if (!response.ok) {
-                throw new Error(`Portal sync failed (${response.status}): ${responseText.slice(0, 160)}`);
-            }
-
-            let result: PortalSyncResult;
+            let result: PortalSyncResult & { error?: string };
             try {
                 result = JSON.parse(responseText);
             } catch (parseError) {
                 console.error("AppShell: Portal sync parse error", parseError, responseText.slice(0, 100));
                 throw new Error("The AI service returned an invalid response. If you're running as a mobile app, ensure your backend is configured.");
+            }
+
+            if (!response.ok) {
+                throw new Error(result.error || `Portal sync failed (${response.status})`);
             }
 
             console.log("AppShell: Received result from /api/parse-portal", {

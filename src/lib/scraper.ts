@@ -168,25 +168,27 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
 
         const activeUrl = activePage.url();
 
-        // D2L Discussion API / Interface Targeting
+        // D2L assignment interface targeting
         if (activeUrl.includes('d2l') && (activeUrl.includes('/lms/home.d2l') || activeUrl.includes('/d2l/home/'))) {
-            console.log("GenesisAI Scraper: D2L detected. Attempting to target Discussion area...");
+            console.log("GenesisAI Scraper: D2L detected. Attempting to target assignment area...");
             try {
-                // Try to find the OrgUnitId from URL if possible, or just look for Discussions link
-                const match = activeUrl.match(/ou=(\d+)/);
-                if (match) {
-                    const ou = match[1];
-                    const discussionUrl = activeUrl.replace(/\/d2l\/home\/.*/, `/d2l/lms/discussions/main.d2l?ou=${ou}`)
-                        .replace(/\/lms\/home\.d2l.*/, `/lms/discussions/main.d2l?ou=${ou}`);
+                const match = activeUrl.match(/[?&]ou=(\d+)/) || activeUrl.match(/\/d2l\/home\/(\d+)/);
+                const origin = new URL(activeUrl).origin;
+                const ou = match?.[1];
 
-                    console.log(`GenesisAI Scraper: Navigating to D2L Discussion area: ${discussionUrl}`);
-                    await activePage.goto(discussionUrl, {
+                if (ou) {
+                    const assignmentsUrl = `${origin}/d2l/lms/dropbox/user/folders_list.d2l?ou=${ou}&isprv=0`;
+
+                    console.log(`GenesisAI Scraper: Navigating to D2L assignment area: ${assignmentsUrl}`);
+                    await activePage.goto(assignmentsUrl, {
                         waitUntil: 'networkidle2',
                         timeout: 15000
                     }).catch((e: any) => console.warn("D2L Nav failed", e));
+                } else {
+                    console.warn(`GenesisAI Scraper: Could not infer D2L org unit from ${activeUrl}`);
                 }
             } catch (e) {
-                console.warn("GenesisAI Scraper: D2L Discussion targeting failed", e);
+                console.warn("GenesisAI Scraper: D2L assignment targeting failed", e);
             }
         }
 
