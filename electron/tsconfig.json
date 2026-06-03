@@ -10,7 +10,6 @@
     "ignoreDeprecations": "5.0",
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "typeRoots": ["./node_modules/@types"],
     "allowJs": true,
     "rootDir": "."
   }

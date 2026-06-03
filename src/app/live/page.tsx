@@ -21,7 +21,7 @@ export default function LiveSessionPage() {
             try {
                 new URL(url); // Validate URL
                 window.open(url, '_blank', 'noopener,noreferrer');
-            } catch (e) {
+            } catch {
                 toast({
                     variant: 'destructive',
                     title: 'Invalid URL',

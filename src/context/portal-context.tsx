@@ -59,10 +59,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 0);
-    return () => clearTimeout(timer);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

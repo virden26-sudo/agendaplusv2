@@ -11,12 +11,6 @@ import { cn } from "@/lib/utils";
 import { format, isSameDay, addDays, startOfWeek, isToday } from 'date-fns';
 import { useState, useMemo } from "react";
 import { useAssignments } from "@/context/assignments-context";
-import type { Assignment } from "@/lib/types";
-
-type AssignmentsByDay = {
-    day: Date;
-    assignments: Assignment[];
-};
 
 export function CalendarView() {
     const { assignments, loading } = useAssignments();

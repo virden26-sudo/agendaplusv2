@@ -30,6 +30,12 @@ const startServers = () => {
     
     serverProcess.stdout.on('data', (data: any) => console.log(`[Ollama] ${data}`));
     serverProcess.stderr.on('data', (data: any) => console.error(`[Ollama Error] ${data}`));
+    serverProcess.on('exit', (code: any) => {
+      console.log(`GenesisAi: Ollama process exited with code ${code}`);
+    });
+    serverProcess.on('error', (err: any) => {
+      console.error('GenesisAi: Ollama process error:', err);
+    });
   } catch (err) {
     console.error('Failed to start Ollama:', err);
   }
@@ -44,6 +50,12 @@ const startServers = () => {
     
     nextProcess.stdout.on('data', (data: any) => console.log(`[Next.js] ${data}`));
     nextProcess.stderr.on('data', (data: any) => console.error(`[Next.js Error] ${data}`));
+    nextProcess.on('exit', (code: any) => {
+      console.log(`GenesisAi: Next.js process exited with code ${code}`);
+    });
+    nextProcess.on('error', (err: any) => {
+      console.error('GenesisAi: Next.js process error:', err);
+    });
   } catch (err) {
     console.error('Failed to start Next.js:', err);
   }
@@ -84,6 +96,7 @@ const appMenuBarMenuTemplate: (MenuItemConstructorOptions | MenuItem)[] = [
 
 // Get Config options from capacitor.config
 const capacitorFileConfig: CapacitorElectronConfig = getCapacitorElectronConfig();
+console.log('GenesisAi: Capacitor Configuration:', JSON.stringify(capacitorFileConfig, null, 2));
 
 // Initialize our app. You can pass menu templates into the app here.
 // const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig);
@@ -103,47 +116,58 @@ if (electronIsDev) {
 
 // Run Application
 (async () => {
-  // Wait for electron app to be ready.
-  await app.whenReady();
+  try {
+    // Wait for electron app to be ready.
+    await app.whenReady();
 
-  // Start sidecar servers
-  startServers();
+    // Start sidecar servers
+    startServers();
 
-  // Security - Set Content-Security-Policy based on whether or not we are in dev mode.
-  setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme());
-  // Initialize our app, build windows, and load content.
-  await myCapacitorApp.init();
-  // Check for updates if we are in a packaged app.
-  autoUpdater.checkForUpdatesAndNotify();
+    // Security - Set Content-Security-Policy based on whether or not we are in dev mode.
+    setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme());
+    // Initialize our app, build windows, and load content.
+    await myCapacitorApp.init();
+    // Check for updates if we are in a packaged app.
+    autoUpdater.checkForUpdatesAndNotify();
+  } catch (error) {
+    console.error('GenesisAi: Critical error during app initialization:', error);
+    app.quit();
+  }
 })();
 
 // Handle when all of our windows are close (platforms have their own expectations).
 app.on('window-all-closed', function () {
+  console.log('GenesisAi: window-all-closed event triggered');
   // Stop servers before quitting
   stopServers();
   // On OS X it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
   if (process.platform !== 'darwin') {
+    console.log('GenesisAi: Quitting app because window-all-closed');
     app.quit();
   }
 });
 
 // Handle app quit
 app.on('quit', () => {
+  console.log('GenesisAi: app quit event triggered');
   stopServers();
 });
 
 // When the dock icon is clicked.
 app.on('activate', async function () {
+  console.log('GenesisAi: app activate event triggered');
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (myCapacitorApp.getMainWindow().isDestroyed()) {
+    console.log('GenesisAi: Re-initializing main window');
     await myCapacitorApp.init();
   }
 });
 
 // IPC handler for logout - stop servers when user logs out
 ipcMain.on('user-logout', () => {
+  console.log('GenesisAi: user-logout IPC received');
   stopServers();
 });
 

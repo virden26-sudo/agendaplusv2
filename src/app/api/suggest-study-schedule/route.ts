@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { suggestStudySchedule } from '@/ai/flows/intelligent-study-schedule-suggestions';
 
-export const dynamic = 'force-dynamic';
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

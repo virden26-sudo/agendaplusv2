@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parsePortalData } from '@/ai/flows/portal-parser';
 
-export const dynamic = 'force-dynamic';
-
 export async function POST(request: NextRequest) {
   console.log('API: /api/parse-portal/ POST request received');
   try {

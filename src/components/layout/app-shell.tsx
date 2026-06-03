@@ -177,7 +177,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
             controller.abort("The portal sync operation timed out after 5 minutes and 10 seconds.");
-        }, 310000); // 310s timeout to give server's 300s timeout priority
+        }, 990000); // 310s timeout to give server's 300s timeout priority
 
         try {
             console.log("AppShell: Fetching /api/parse-portal...");
@@ -255,20 +255,12 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         const storedSessionReady = localStorage.getItem("portalSessionReady") === "true";
-        
-        const sessionTimer = setTimeout(() => {
-            setHasPersistentPortalSession((prev) => prev === storedSessionReady ? prev : storedSessionReady);
-        }, 0);
+        setHasPersistentPortalSession(storedSessionReady);
 
         if (!user || !portalUrl) {
             console.log("AppShell: No user or portalUrl, opening onboarding");
-            const onboardingTimer = setTimeout(() => {
-                setOnboardingOpen(true);
-            }, 0);
-            return () => {
-                clearTimeout(sessionTimer);
-                clearTimeout(onboardingTimer);
-            };
+            setOnboardingOpen(true);
+            return;
         }
 
         const shouldStartupSync =
@@ -291,18 +283,10 @@ export function AppShell({children}: { children: React.ReactNode }) {
             shouldStartupSync
         });
 
-        let syncTimer: number | undefined;
         if (shouldStartupSync) {
             console.log("AppShell: Triggering startup sync");
-            syncTimer = window.setTimeout(() => {
-                void runPortalSync("startup");
-            }, 0);
+            void runPortalSync("startup");
         }
-
-        return () => {
-            clearTimeout(sessionTimer);
-            if (syncTimer) window.clearTimeout(syncTimer);
-        };
     }, [announcements.length, assignments.length, assignmentsLoading, hasAttemptedStartupSync, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
 
     React.useEffect(() => {
@@ -321,13 +305,10 @@ export function AppShell({children}: { children: React.ReactNode }) {
 
     React.useEffect(() => {
         if (settingsOpen) {
-            const timer = setTimeout(() => {
-                setPortalUrlInput((prev) => prev === portalUrl ? prev : portalUrl);
-                setBackendUrlInput((prev) => prev === backendUrl ? prev : backendUrl);
-                setPortalUsernameInput((prev) => prev === (user?.portalUsername || "") ? prev : (user?.portalUsername || ""));
-                setPortalPasswordInput((prev) => prev === (user?.portalPassword || "") ? prev : (user?.portalPassword || ""));
-            }, 0);
-            return () => clearTimeout(timer);
+            setPortalUrlInput(portalUrl);
+            setBackendUrlInput(backendUrl);
+            setPortalUsernameInput(user?.portalUsername || "");
+            setPortalPasswordInput(user?.portalPassword || "");
         }
     }, [settingsOpen, portalUrl, backendUrl, user?.portalUsername, user?.portalPassword]);
 

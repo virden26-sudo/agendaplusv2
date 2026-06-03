@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { differenceInDays, formatDistanceToNowStrict } from "date-fns";
 import { FileText, ClipboardCheck, Presentation, CircleOff } from "lucide-react";
 import { useAssignments } from "@/context/assignments-context";
 import { Skeleton } from "../ui/skeleton";

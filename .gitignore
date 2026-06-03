@@ -26,6 +26,9 @@ obj/
 *.swp
 *.swo
 
+# Browser Profile (Scraper Cache)
+.portal-browser-profile/
+
 # Local config
 local.properties
 .env

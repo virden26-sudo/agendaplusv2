@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Upload, FileText, Loader2, CheckCircle2, AlertCircle, Plus } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function SyllabusAI({ onSync }) {
   const [file, setFile] = useState(null);

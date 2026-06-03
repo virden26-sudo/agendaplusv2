@@ -23,26 +23,22 @@ export function UserProvider({children}: { children: ReactNode }) {
     const [isUserLoaded, setIsUserLoaded] = useState(false);
 
     useEffect(() => {
-        const timeoutId = window.setTimeout(() => {
-            try {
-                const storedUser = localStorage.getItem("agendaUser");
-                const storedPortalUrl = localStorage.getItem("studentPortalUrl");
-                const storedBackendUrl = localStorage.getItem("backendUrl");
+        try {
+            const storedUser = localStorage.getItem("agendaUser");
+            const storedPortalUrl = localStorage.getItem("studentPortalUrl");
+            const storedBackendUrl = localStorage.getItem("backendUrl");
 
-                setUser(storedUser ? (JSON.parse(storedUser) as User) : null);
-                setPortalUrl(storedPortalUrl || "");
-                setBackendUrl(storedBackendUrl || "");
-            } catch (error) {
-                console.error("Failed to parse user from local storage", error);
-                setUser(null);
-                setPortalUrl("");
-                setBackendUrl("");
-            } finally {
-                setIsUserLoaded(true);
-            }
-        }, 0);
-
-        return () => window.clearTimeout(timeoutId);
+            setUser(storedUser ? (JSON.parse(storedUser) as User) : null);
+            setPortalUrl(storedPortalUrl || "");
+            setBackendUrl(storedBackendUrl || "");
+        } catch (error) {
+            console.error("Failed to parse user from local storage", error);
+            setUser(null);
+            setPortalUrl("");
+            setBackendUrl("");
+        } finally {
+            setIsUserLoaded(true);
+        }
     }, []);
 
     const handleSetUser = (newUser: User | null) => {

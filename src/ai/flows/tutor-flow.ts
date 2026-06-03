@@ -1,5 +1,3 @@
-'use server';
-
 import {ai, buddIEGenerate} from '@/ai/genkit';
 import {type TutorInput, TutorInputSchema, TutorOutputSchema} from '@/ai/schemas';
 

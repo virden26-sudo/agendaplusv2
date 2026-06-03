@@ -7,7 +7,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { differenceInDays, formatDistanceToNowStrict } from 'date-fns';
 import { CircleOff } from "lucide-react";
 import type { Assignment } from "@/lib/types";
 import { getPriorityBadgeVariant, getDueDateInfo } from "@/lib/assignment-utils";

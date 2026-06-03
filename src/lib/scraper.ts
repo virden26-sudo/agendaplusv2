@@ -253,7 +253,7 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
 }
 
 async function getSharedBrowser(puppeteer: any, executablePath: string, fs: typeof import("fs")) {
-    if (sharedBrowser && !sharedBrowser.isClosed()) {
+    if (sharedBrowser && sharedBrowser.isConnected()) {
         return sharedBrowser;
     }
 
