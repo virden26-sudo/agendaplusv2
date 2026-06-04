@@ -20,9 +20,9 @@ import {
     User as UserIcon,
     Video,
 } from "lucide-react";
-import Link from "next/link";
 import dynamic from "next/dynamic";
-import {usePathname, useRouter} from "next/navigation";
+import {usePathname} from "next/navigation";
+import Link from "next/link";
 import {v4 as uuidv4} from "uuid";
 
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar";
@@ -76,7 +76,7 @@ import {useAssignments} from "@/context/assignments-context";
 import {useGrades} from "@/context/grades-context";
 import {usePortal} from "@/context/portal-context";
 import {useUser} from "@/context/user-context";
-import {getApiUrl} from "@/lib/api-config";
+import {apiFetch} from "@/lib/api-config";
 import type {Announcement, Discussion} from "@/lib/types";
 import type {ParsedAssignment} from "@/ai/schemas/assignment";
 
@@ -93,14 +93,15 @@ type PortalSyncResult = {
         postedDate: string | Date;
         dueDate?: string | Date | null
     }>;
+    quizzes?: ParsedAssignment[];
+    grades?: Array<{ course: string; grade: string; details?: string | null }>;
 };
 
 export function AppShell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const router = useRouter();
     const {toast} = useToast();
     const {assignments, addMultipleAssignments, loading: assignmentsLoading} = useAssignments();
-    const {courses} = useGrades();
+    const {courses, setCourses} = useGrades();
     const {announcements, addAnnouncements, addDiscussions, loading: portalLoading} = usePortal();
     const {user, setUser, portalUrl, setPortalUrl, backendUrl, setBackendUrl, isUserLoaded} = useUser();
 
@@ -119,16 +120,29 @@ export function AppShell({children}: { children: React.ReactNode }) {
     const [hasAttemptedStartupSync, setHasAttemptedStartupSync] = React.useState(false);
     const [hasPersistentPortalSession, setHasPersistentPortalSession] = React.useState(false);
 
+    React.useEffect(() => {
+        if (typeof window !== "undefined") {
+            setHasPersistentPortalSession(localStorage.getItem("portalSessionReady") === "true");
+        }
+    }, []);
+
     const processSyncResult = React.useCallback((result: PortalSyncResult) => {
         console.log("AppShell: processSyncResult counts", {
             assignments: result.assignments?.length ?? 0,
             announcements: result.announcements?.length ?? 0,
             discussions: result.discussions?.length ?? 0,
+            quizzes: result.quizzes?.length ?? 0,
+            grades: result.grades?.length ?? 0
         });
 
-        if (result.assignments?.length) {
+        const allTasks = [
+            ...(result.assignments || []),
+            ...(result.quizzes || [])
+        ];
+
+        if (allTasks.length) {
             addMultipleAssignments(
-                result.assignments.map((assignment) => ({
+                allTasks.map((assignment) => ({
                     ...assignment,
                     course: assignment.course || undefined,
                 }))
@@ -162,14 +176,55 @@ export function AppShell({children}: { children: React.ReactNode }) {
             );
         }
 
+        if (result.grades?.length) {
+            const newCourses = result.grades.map(g => {
+                // Try to parse grade like "95%" or "4.0" to a number
+                const gradeStr = g.grade || "0";
+                const gradeNum = parseFloat(gradeStr.replace(/[^0-9.]/g, ''));
+
+                return {
+                    id: uuidv4(),
+                    name: g.course || "Extracted Course",
+                    grade: isNaN(gradeNum) ? 0 : gradeNum
+                };
+            });
+
+            setCourses(newCourses);
+        }
+
         localStorage.setItem("lastAutoSync", Date.now().toString());
-        // ALWAYS set portalSessionReady to true if we got a result, even if empty, 
+        // ALWAYS set portalSessionReady to true if we got a result, even if empty,
         // to prevent infinite startup sync loops if the portal is actually empty.
         localStorage.setItem("portalSessionReady", "true");
         setHasPersistentPortalSession(true);
-    }, [addAnnouncements, addDiscussions, addMultipleAssignments]);
+    }, [addAnnouncements, addDiscussions, addMultipleAssignments, setCourses]);
+    const isRemoteBrowserClient = React.useCallback(() => {
+        if (typeof window === "undefined") {
+            return false;
+        }
+
+        const {hostname, protocol} = window.location;
+        return protocol.startsWith("http") && hostname !== "localhost" && hostname !== "127.0.0.1";
+    }, []);
 
     const runPortalSync = React.useCallback(async (mode: "startup" | "manual" | "background") => {
+        if (isRemoteBrowserClient()) {
+            console.log(`AppShell: Skipping backend browser scraper from remote client (${mode}).`);
+            if (mode === "manual") {
+                window.open(portalUrl, "_blank", "noopener,noreferrer");
+                toast({
+                    title: "Portal Opened On This Device",
+                    description: "Agenda+ will not open a browser on your computer while you are using the app from your phone.",
+                });
+            }
+
+            if (mode === "startup") {
+                setHasAttemptedStartupSync(true);
+            }
+
+            return;
+        }
+
         const setSyncState = mode === "background" ? setIsBackgroundSyncing : setIsStartupSyncing;
         console.log(`AppShell: runPortalSync started (mode: ${mode})`);
         setSyncState(true);
@@ -180,8 +235,8 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }, 990000); // 310s timeout to give server's 300s timeout priority
 
         try {
-            console.log("AppShell: Fetching /api/parse-portal...");
-            const response = await fetch(getApiUrl("/api/parse-portal"), {
+            console.log("AppShell: Fetching /api/parse-portal through backend resolver...");
+            const response = await apiFetch("/api/parse-portal", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -203,7 +258,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                 result = JSON.parse(responseText);
             } catch (parseError) {
                 console.error("AppShell: Portal sync parse error", parseError, responseText.slice(0, 100));
-                throw new Error("The AI service returned an invalid response. If you're running as a mobile app, ensure your backend is configured.");
+                throw new Error("Agenda+ reached a local service, but it did not return portal data. The app will keep trying available local backends; restart the app if the local service just started.");
             }
 
             if (!response.ok) {
@@ -213,7 +268,9 @@ export function AppShell({children}: { children: React.ReactNode }) {
             console.log("AppShell: Received result from /api/parse-portal", {
                 hasAssignments: !!result.assignments,
                 hasAnnouncements: !!result.announcements,
-                hasDiscussions: !!result.discussions
+                hasDiscussions: !!result.discussions,
+                hasQuizzes: !!result.quizzes,
+                hasGrades: !!result.grades
             });
             processSyncResult(result);
 
@@ -223,20 +280,23 @@ export function AppShell({children}: { children: React.ReactNode }) {
                     description: "GenesisAI opened a monitored browser session and refreshed the dashboard.",
                 });
             }
-        } catch (error: any) {
-            const isAborted = error.name === 'AbortError' || (error instanceof DOMException && error.name === 'AbortError');
+        } catch (error: unknown) {
+            const isAborted = error instanceof Error && (error.name === 'AbortError' || (error instanceof DOMException && error.name === 'AbortError'));
             
             if (isAborted) {
-                console.warn("AppShell: Portal sync request was aborted (timeout or manual).", error.message);
+                console.warn("AppShell: Portal sync request was aborted (timeout or manual).", (error as Error).message);
+                toast({
+                    variant: "destructive",
+                    title: "Portal Sync Timed Out",
+                    description: (error as Error).message || "The monitored browser session did not return usable portal data.",
+                });
             } else {
                 console.error("AppShell: Portal sync failed", error);
+                toast({
+                    title: "Manual Sync Suggested",
+                    description: "Automatic scan requires your computer. Use 'Manual Sync' in the Portal tab to paste data directly!",
+                });
             }
-
-            toast({
-                variant: "destructive",
-                title: isAborted ? "Portal Sync Timed Out" : "Portal Sync Failed",
-                description: error.message || "The monitored browser session did not return usable portal data.",
-            });
         } finally {
             clearTimeout(timeoutId);
             console.log(`AppShell: runPortalSync finished (mode: ${mode})`);
@@ -245,7 +305,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
             }
             setSyncState(false);
         }
-    }, [portalUrl, processSyncResult, toast, user]);
+    }, [isRemoteBrowserClient, portalUrl, processSyncResult, toast, user]);
 
     React.useEffect(() => {
         if (!isUserLoaded) {
@@ -253,17 +313,14 @@ export function AppShell({children}: { children: React.ReactNode }) {
             return;
         }
 
-        const storedSessionReady = localStorage.getItem("portalSessionReady") === "true";
-        setHasPersistentPortalSession(storedSessionReady);
-
         if (!user || !portalUrl) {
             console.log("AppShell: No user or portalUrl, opening onboarding");
-            setOnboardingOpen(true);
+            setTimeout(() => setOnboardingOpen(true), 0);
             return;
         }
 
         const shouldStartupSync =
-            (!storedSessionReady || (user?.portalUsername && user?.portalPassword)) &&
+            (!hasPersistentPortalSession || (user?.portalUsername && user?.portalPassword)) &&
             !hasAttemptedStartupSync &&
             !assignmentsLoading &&
             !portalLoading &&
@@ -272,7 +329,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
             portalUrl;
 
         console.log("AppShell: Sync check", {
-            storedSessionReady,
+            hasPersistentPortalSession,
             hasAttemptedStartupSync,
             assignmentsLoading,
             portalLoading,
@@ -284,9 +341,11 @@ export function AppShell({children}: { children: React.ReactNode }) {
 
         if (shouldStartupSync) {
             console.log("AppShell: Triggering startup sync");
-            void runPortalSync("startup");
+            setTimeout(() => {
+                void runPortalSync("startup");
+            }, 0);
         }
-    }, [announcements.length, assignments.length, assignmentsLoading, hasAttemptedStartupSync, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
+    }, [announcements.length, assignments.length, assignmentsLoading, hasAttemptedStartupSync, hasPersistentPortalSession, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
 
     React.useEffect(() => {
         if (!hasPersistentPortalSession || !hasAttemptedStartupSync || !portalUrl) {
@@ -304,10 +363,12 @@ export function AppShell({children}: { children: React.ReactNode }) {
 
     React.useEffect(() => {
         if (settingsOpen) {
-            setPortalUrlInput(portalUrl);
-            setBackendUrlInput(backendUrl);
-            setPortalUsernameInput(user?.portalUsername || "");
-            setPortalPasswordInput(user?.portalPassword || "");
+            setTimeout(() => {
+                setPortalUrlInput(portalUrl);
+                setBackendUrlInput(backendUrl);
+                setPortalUsernameInput(user?.portalUsername || "");
+                setPortalPasswordInput(user?.portalPassword || "");
+            }, 0);
         }
     }, [settingsOpen, portalUrl, backendUrl, user?.portalUsername, user?.portalPassword]);
 
@@ -553,7 +614,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                     className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:h-[60px] lg:px-6">
                     <SidebarTrigger/>
                     {pathname !== "/" && (
-                        <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2">
+                        <Button variant="ghost" size="icon" onClick={() => window.history.back()} className="mr-2">
                             <ArrowLeft className="size-5"/>
                             <span className="sr-only">Go back</span>
                         </Button>
@@ -588,7 +649,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                         </div>
                     </div>
                 </header>
-                <main className="relative flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:gap-6 lg:p-6">
+                <div className="relative flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:gap-6 lg:p-6">
                     {isSyncing ? (
                         <div
                             className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md transition-all duration-500">
@@ -631,7 +692,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                     ) : (
                         children
                     )}
-                </main>
+                </div>
             </SidebarInset>
             <AddAssignmentDialog open={addAssignmentOpen} onOpenChange={setAddAssignmentOpen}/>
             <IntelligentSchedulerDialog open={schedulerOpen} onOpenChange={setSchedulerOpen}/>

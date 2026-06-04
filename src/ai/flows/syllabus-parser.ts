@@ -25,7 +25,12 @@ const parseSyllabusFlow = ai.defineFlow(
     console.log("GenesisAi: Analyzing syllabus file via Ollama...");
     try {
       const { output } = await ai.generate({
-        model: 'ollama/GenesisAi-Standalone',
+        model: 'ollama/genesisai-standalone:latest',
+        config: {
+          num_ctx: 16384,
+          temperature: 0.1,
+        },
+        onChunk: () => {},
         system: `You are GenesisAi-Standalone. Extract all assignments from the syllabus document.
         Output MUST be valid JSON with an 'assignments' array matching the schema.`,
         prompt: `Current Date: ${input.currentDate || new Date().toLocaleDateString()}. Extract assignments from this document.`,

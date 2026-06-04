@@ -60,13 +60,25 @@ const PortalParserInputSchema = z.object({
 const PortalParserOutputSchema = z.object({
     assignments: z.array(AssignmentSchema),
     announcements: z.array(AnnouncementSchema),
-    discussions: z.array(DiscussionSchema)
+    discussions: z.array(DiscussionSchema),
+    quizzes: z.array(AssignmentSchema).optional().default([]),
+    grades: z.array(z.object({
+        course: z.string(),
+        grade: z.string(), // Keeping as string to handle "95%" or "A"
+        details: z.string().optional().nullable()
+    })).optional().default([])
 });
 
 const TolerantPortalPayloadSchema = z.object({
     assignments: z.array(TolerantAssignmentSchema).optional().default([]),
     announcements: z.array(AnnouncementSchema).optional().default([]),
-    discussions: z.array(TolerantDiscussionSchema).optional().default([])
+    discussions: z.array(TolerantDiscussionSchema).optional().default([]),
+    quizzes: z.array(TolerantAssignmentSchema).optional().default([]),
+    grades: z.array(z.object({
+        course: z.string().optional().default(""),
+        grade: z.string().optional().default(""),
+        details: z.string().optional().nullable()
+    })).optional().default([])
 }).passthrough();
 
 const TolerantGenkitOutputSchema = z.union([
@@ -110,6 +122,18 @@ const normalizePortalOutput = (rawOutput: unknown, currentDate: string): z.infer
             postedDate: discussion.postedDate || currentDate,
             course: discussion.course || null,
             author: discussion.author || null
+        })),
+        quizzes: (parsed.quizzes || []).map((quiz) => ({
+            task: quiz.task,
+            dueDate: quiz.dueDate || null,
+            course: quiz.course || null,
+            details: quiz.details || null,
+            priority: quiz.priority || undefined
+        })),
+        grades: (parsed.grades || []).map((g) => ({
+            course: g.course || "Current Course",
+            grade: g.grade || "N/A",
+            details: g.details || null
         }))
     });
 };
@@ -124,7 +148,7 @@ const parsePortalFlow = ai.defineFlow(
     inputSchema: PortalParserInputSchema,
     outputSchema: PortalParserOutputSchema,
   },
-  async (input: any) => {
+  async (input: z.infer<typeof PortalParserInputSchema>) => {
     let textToParse = input.portalText || "";
     let fileToParse = input.portalFile || "";
 
@@ -132,7 +156,7 @@ const parsePortalFlow = ai.defineFlow(
         console.log(`GenesisAi: Launching autonomous scraper for ${input.url}`);
         try {
             textToParse = await scrapePortal(input.url, input.username, input.password);
-        } catch (scrapeError) {
+        } catch (scrapeError: unknown) {
             console.warn(`GenesisAi: Scraping failed for ${input.url}:`, scrapeError);
             throw new Error(`Portal scraping failed: ${getErrorMessage(scrapeError)}`);
         }
@@ -142,42 +166,58 @@ const parsePortalFlow = ai.defineFlow(
         return {
             assignments: [],
             announcements: [],
-            discussions: []
+            discussions: [],
+            quizzes: [],
+            grades: []
         };
     }
 
     console.log("GenesisAi: Parsing portal data via Ollama...");
     
     const currentDate = input.currentDate || new Date().toLocaleDateString('en-CA');
+    const cleanedText = textToParse.replace(/[^\S\r\n]+/g, ' ').trim();
 
     try {
       const { output } = await ai.generate({
         model: 'ollama/genesisai-standalone:latest',
+        config: {
+          temperature: 0.1,
+          num_ctx: 16384, // Increase context window for large portal data
+        },
+        onChunk: () => {
+          // Providing a no-op chunk handler forces streaming at the Ollama level,
+          // which ensures headers are sent immediately and prevents UND_ERR_HEADERS_TIMEOUT
+          // during long prompt processing.
+        },
         system: `You are GenesisAi-Standalone. Your mission is to scan the provided portal data and extract EVERYTHING for the student's courses.
 
+        The data is organized into sections: Assignments, Quizzes, Discussions, and Grades.
+
         CRITICAL DATA CAPTURE RULES:
-        - EXTRACT ALL WEEKS: Identify and extract tasks from every week mentioned.
+        - EXTRACT ALL SECTIONS: Identify and extract tasks from Assignments, Quizzes, and Discussions.
+        - EXTRACT GRADES: Look for course names and current grades/percentages.
         - INFER YEARS: Use ${currentDate} to anchor all dates.
         - ISO FORMAT: Always output dates as YYYY-MM-DD.
         - OUTPUT ONLY THE DATA OBJECT. Do not output a JSON schema, "type", "properties", or "required" wrapper.`,
-        prompt: `Process this portal data:
-        ${textToParse}
-
-        ${fileToParse ? `Media attached: ${fileToParse}` : ''}`,
-        messages: fileToParse ? [
+        messages: [
             {
                 role: 'user',
                 content: [
-                    { media: { url: fileToParse, contentType: 'image/jpeg' } }, // Adjust content type as needed
-                    { text: `Extract data from this portal view. Today is ${currentDate}.` }
+                    ...(fileToParse ? [{ media: { url: fileToParse, contentType: 'image/jpeg' } }] : []),
+                    { 
+                      text: `Process this multi-section portal data. Today is ${currentDate}.
+                      
+                      Portal Data:
+                      ${cleanedText}` 
+                    }
                 ]
             }
-        ] : [],
+        ],
         output: { schema: TolerantGenkitOutputSchema }
       });
 
       return normalizePortalOutput(output, currentDate);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("GenesisAi portal parsing failed:", error);
       throw new Error(`GenesisAi could not parse the extracted portal text: ${getErrorMessage(error)}`);
     }

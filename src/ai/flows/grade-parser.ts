@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * @fileOverview A flow that parses grade information from raw text.
  *
@@ -40,8 +38,14 @@ const parseGradesFlow = ai.defineFlow(
     console.log("GenesisAi: Parsing grades via Ollama...");
 
     try {
+      const cleanedGradesText = input.gradesText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/GenesisAi-Standalone',
+        model: 'ollama/genesisai-standalone:latest',
+        config: {
+          num_ctx: 16384,
+          temperature: 0.1,
+        },
+        onChunk: () => {},
         system: `You are GenesisAi-Standalone, an academic performance analyst.
         Your mission is to scan raw grades text and extract course names and their corresponding grades.
 
@@ -51,7 +55,7 @@ const parseGradesFlow = ai.defineFlow(
         - Only include courses where a grade is available.`,
         prompt: `Extract course grades from this text:
 
-        ${input.gradesText}`,
+        ${cleanedGradesText}`,
         output: { schema: ParseGradesOutputSchema }
       });
 

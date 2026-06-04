@@ -1,8 +1,9 @@
 // This file is modified to be safe for both Node and Browser environments.
 // Puppeteer and fs will only be imported and used in a Node environment.
 
-let sharedBrowser: any;
-let sharedBrowserPromise: Promise<any> | null = null;
+let sharedBrowser: unknown;
+let sharedBrowserPromise: Promise<unknown> | null = null;
+let sharedBrowserVisible = false;
 const SHARED_BROWSER_PROFILE_DIR = "C:\\AgendaPlusv2\\.portal-browser-profile";
 
 export async function scrapePortal(url: string, user?: string, pass?: string): Promise<string> {
@@ -38,15 +39,59 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
 
     try {
         const executablePath = getExecutablePath();
-        const browser = await getSharedBrowser(puppeteer, executablePath, fs);
+        let browser = await getSharedBrowser(puppeteer, executablePath, fs, false) as any;
 
-        const [page] = await browser.pages();
+        let [page] = await browser.pages();
 
         // Set a timeout of 60 seconds
-        page.setDefaultNavigationTimeout(60000);
+        (page as any).setDefaultNavigationTimeout(60000);
         console.log(`GenesisAI Scraper: Navigating to ${url}...`);
-        await page.goto(url, {waitUntil: 'networkidle2'});
+        await (page as any).goto(url, {waitUntil: 'networkidle2'});
         console.log(`GenesisAI Scraper: Navigation to ${url} successful.`);
+
+        const needsInteractiveLogin = async () => {
+            if (isOktaUrl((page as any).url())) {
+                return true;
+            }
+
+            try {
+                return await (page as any).evaluate(`(() => {
+                    return Array.from(document.querySelectorAll("input")).some((input) => {
+                        const type = (input.type || "").toLowerCase();
+                        const name = (input.name || "").toLowerCase();
+                        const id = (input.id || "").toLowerCase();
+                        const placeholder = (input.placeholder || "").toLowerCase();
+
+                        return (
+                            type === "password" ||
+                            name.includes("password") ||
+                            id.includes("password") ||
+                            placeholder.includes("password") ||
+                            name.includes("username") ||
+                            id.includes("username") ||
+                            placeholder.includes("username") ||
+                            placeholder.includes("email")
+                        );
+                    });
+                })()`);
+            } catch {
+                return false;
+            }
+        };
+
+        if (!sharedBrowserVisible && await needsInteractiveLogin()) {
+            console.log("GenesisAI Scraper: Login required. Opening visible browser for authentication.");
+            await (browser as any).close().catch(() => {});
+            sharedBrowser = null;
+            sharedBrowserPromise = null;
+
+            browser = await getSharedBrowser(puppeteer, executablePath, fs, true);
+            [page] = await (browser as any).pages();
+            (page as any).setDefaultNavigationTimeout(60000);
+            await (page as any).goto(url, {waitUntil: 'networkidle2'});
+        } else {
+            console.log("GenesisAI Scraper: Existing portal session available. Continuing silently.");
+        }
 
         // Handle Login if credentials provided
         if (user && pass) {
@@ -82,20 +127,20 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
                 ];
 
                 // Check if we are already logged in
-                const bodyText = await page.evaluate(() => document.body.innerText.toLowerCase());
-                const looksLoggedIn = ["logout", "sign out", "dashboard", "my courses"].some(term => bodyText.includes(term));
+                const bodyText = await (page as any).evaluate(() => document.body.innerText.toLowerCase());
+                const looksLoggedIn = ["logout", "sign out", "dashboard", "my courses"].some(term => (bodyText as string).includes(term));
 
                 if (!looksLoggedIn) {
                     let userFieldFound = false;
                     for (const selector of userSelectors) {
                         try {
-                            await page.waitForSelector(selector, {timeout: 2000});
-                            await page.click(selector, {clickCount: 3}); // Select all
-                            await page.keyboard.press('Backspace');
-                            await page.type(selector, user, {delay: 50});
+                            await (page as any).waitForSelector(selector, {timeout: 2000});
+                            await (page as any).click(selector, {clickCount: 3}); // Select all
+                            await (page as any).keyboard.press('Backspace');
+                            await (page as any).type(selector, user, {delay: 50});
                             userFieldFound = true;
                             break;
-                        } catch (e) {
+                        } catch (_e) {
                         }
                     }
 
@@ -104,11 +149,11 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
                         let passFieldFound = false;
                         for (const selector of passSelectors) {
                             try {
-                                await page.waitForSelector(selector, {timeout: 2000});
-                                await page.type(selector, pass, {delay: 50});
+                                await (page as any).waitForSelector(selector, {timeout: 2000});
+                                await (page as any).type(selector, pass, {delay: 50});
                                 passFieldFound = true;
                                 break;
-                            } catch (e) {
+                            } catch (_e) {
                             }
                         }
 
@@ -117,35 +162,35 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
                             console.log("GenesisAI Scraper: Password field not found, trying multi-step login...");
                             for (const selector of submitSelectors) {
                                 try {
-                                    const btn = await page.$(selector);
+                                    const btn = await (page as any).$(selector);
                                     if (btn) {
                                         await btn.click();
-                                        await page.waitForNavigation({
+                                        await (page as any).waitForNavigation({
                                             waitUntil: 'networkidle2',
                                             timeout: 5000
                                         }).catch(() => {
                                         });
                                         break;
                                     }
-                                } catch (e) {
+                                } catch (_e) {
                                 }
                             }
 
                             // Try password again
                             for (const selector of passSelectors) {
                                 try {
-                                    await page.waitForSelector(selector, {timeout: 3000});
-                                    await page.type(selector, pass, {delay: 50});
+                                    await (page as any).waitForSelector(selector, {timeout: 3000});
+                                    await (page as any).type(selector, pass, {delay: 50});
                                     passFieldFound = true;
                                     break;
-                                } catch (e) {
+                                } catch (_e) {
                                 }
                             }
                         }
 
                         if (passFieldFound) {
-                            await page.keyboard.press('Enter');
-                            await page.waitForNavigation({waitUntil: 'networkidle2', timeout: 10000}).catch(() => {
+                            await (page as any).keyboard.press('Enter');
+                            await (page as any).waitForNavigation({waitUntil: 'networkidle2', timeout: 10000}).catch(() => {
                             });
                         }
                     }
@@ -163,32 +208,68 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
         console.log("GenesisAI Scraper: Manual intervention phase completed.");
 
         let activePage = page;
-        const pages = await browser.pages();
-        activePage = pages.find((candidate: any) => !candidate.isClosed()) || page;
+        const pages = await (browser as any).pages();
+        activePage = (pages as any[]).find((candidate: any) => !candidate.isClosed()) || page;
 
-        const activeUrl = activePage.url();
+        const activeUrl = (activePage as any).url();
 
-        // D2L assignment interface targeting
+        // D2L interface targeting
         if (activeUrl.includes('d2l') && (activeUrl.includes('/lms/home.d2l') || activeUrl.includes('/d2l/home/'))) {
-            console.log("GenesisAI Scraper: D2L detected. Attempting to target assignment area...");
+            console.log("GenesisAI Scraper: D2L detected. Aggregating course data...");
             try {
                 const match = activeUrl.match(/[?&]ou=(\d+)/) || activeUrl.match(/\/d2l\/home\/(\d+)/);
                 const origin = new URL(activeUrl).origin;
                 const ou = match?.[1];
 
                 if (ou) {
-                    const assignmentsUrl = `${origin}/d2l/lms/dropbox/user/folders_list.d2l?ou=${ou}&isprv=0`;
+                    const targets = [
+                        { name: 'Assignments', url: `${origin}/d2l/lms/dropbox/user/folders_list.d2l?ou=${ou}&isprv=0` },
+                        { name: 'Quizzes', url: `${origin}/d2l/lms/quizzing/user/quizzes_list.d2l?ou=${ou}` },
+                        { name: 'Discussions', url: `${origin}/d2l/lms/discussions/user/discussions_list.d2l?ou=${ou}` },
+                        { name: 'Grades', url: `${origin}/d2l/lms/grades/user/grades_list.d2l?ou=${ou}` }
+                    ];
 
-                    console.log(`GenesisAI Scraper: Navigating to D2L assignment area: ${assignmentsUrl}`);
-                    await activePage.goto(assignmentsUrl, {
-                        waitUntil: 'networkidle2',
-                        timeout: 15000
-                    }).catch((e: any) => console.warn("D2L Nav failed", e));
+                    let aggregatedContent = "";
+
+                    for (const target of targets) {
+                        console.log(`GenesisAI Scraper: Visiting ${target.name} area: ${target.url}`);
+                        try {
+                            await (activePage as any).goto(target.url, {
+                                waitUntil: 'networkidle2',
+                                timeout: 10000
+                            });
+                            
+                            // Extract content from current page/frames
+                            const frames = (activePage as any).frames();
+                            const frameTexts = await Promise.all(
+                                (frames as any[]).map(async (frame: any) => {
+                                    try {
+                                        if (frame.isDetached()) return "";
+                                        return await frame.evaluate(`(() => {
+                                            const clone = document.documentElement.cloneNode(true);
+                                            const toRemove = clone.querySelectorAll('script, style, noscript, .nav-bar, .footer, footer, header, .sidebar');
+                                            toRemove.forEach((element) => element.remove());
+                                            return clone.innerText;
+                                        })()`);
+                                    } catch { return ""; }
+                                })
+                            );
+                            
+                            const pageContent = Array.from(new Set(frameTexts.filter((text) => (text as string).length > 0))).join("\n");
+                            aggregatedContent += `\n\n=== SECTION: ${target.name} ===\n\n${pageContent}`;
+                        } catch (err) {
+                            console.warn(`GenesisAI Scraper: Failed to extract ${target.name}`, err);
+                        }
+                    }
+
+                    console.log(`GenesisAI Scraper: Multi-section extraction complete. Total: ${aggregatedContent.length} chars.`);
+                    return aggregatedContent;
+
                 } else {
                     console.warn(`GenesisAI Scraper: Could not infer D2L org unit from ${activeUrl}`);
                 }
-            } catch (e) {
-                console.warn("GenesisAI Scraper: D2L assignment targeting failed", e);
+            } catch (err) {
+                console.warn("GenesisAI Scraper: D2L data aggregation failed", err);
             }
         }
 
@@ -199,7 +280,7 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
         // SEARCH FIX: Wait for common LMS content indicators
         console.log("GenesisAI Scraper: Analyzing page content for LMS indicators...");
         try {
-            await activePage.waitForFunction(`(() => {
+            await (activePage as any).waitForFunction(`(() => {
           const text = document.body.innerText.toLowerCase();
           return text.includes('assignment') || 
                  text.includes('course') || 
@@ -209,16 +290,16 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
                  text.includes('announcement');
       })()`, {timeout: 10000});
             console.log("GenesisAI Scraper: LMS content indicators found.");
-        } catch (error) {
+        } catch (_error) {
             console.log("GenesisAI Scraper: Content indicators not found or frame changed, continuing anyway.");
         }
 
         // Extract content from the main page and all accessible frames.
-        const frames = activePage.frames();
+        const frames = (activePage as any).frames();
         console.log(`GenesisAI Scraper: Inspecting ${frames.length} frame(s).`);
 
         const frameTexts = await Promise.all(
-            frames.map(async (frame: any, index: number) => {
+            (frames as any[]).map(async (frame: any, index: number) => {
                 try {
                     if (frame.isDetached()) {
                         console.log(`GenesisAI Scraper: Frame ${index} is detached.`);
@@ -234,7 +315,7 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
 
                     console.log(`GenesisAI Scraper: Frame ${index} extracted ${typeof text === "string" ? text.length : 0} characters.`);
                     return typeof text === "string" ? text.trim() : "";
-                } catch (error) {
+                } catch (_error) {
                     console.log(`GenesisAI Scraper: Frame ${index} extraction failed.`);
                     return "";
                 }
@@ -248,15 +329,20 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
 
         return content;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("GenesisAI Scraper: Mission Failed!", error);
         throw error;
     }
 }
 
-async function getSharedBrowser(puppeteer: any, executablePath: string, fs: typeof import("fs")) {
-    if (sharedBrowser && sharedBrowser.isConnected()) {
+async function getSharedBrowser(puppeteer: any, executablePath: string, fs: typeof import("fs"), visible = false) {
+    if (sharedBrowser && (sharedBrowser as any).isConnected() && sharedBrowserVisible === visible) {
         return sharedBrowser;
+    }
+
+    if (sharedBrowser && (sharedBrowser as any).isConnected()) {
+        await (sharedBrowser as any).close().catch(() => {});
+        sharedBrowser = null;
     }
 
     if (sharedBrowserPromise) {
@@ -274,13 +360,18 @@ async function getSharedBrowser(puppeteer: any, executablePath: string, fs: type
 
             const browser = await puppeteer.launch({
                 executablePath,
-                headless: false,
+                headless: visible ? false : "new",
                 defaultViewport: null,
                 userDataDir: SHARED_BROWSER_PROFILE_DIR,
-                args: ['--start-maximized', '--no-sandbox', '--disable-setuid-sandbox']
+                args: [
+                    visible ? '--start-maximized' : '--window-position=-32000,-32000',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox'
+                ]
             });
 
             sharedBrowser = browser;
+            sharedBrowserVisible = visible;
             return browser;
         } finally {
             sharedBrowserPromise = null;
@@ -291,7 +382,7 @@ async function getSharedBrowser(puppeteer: any, executablePath: string, fs: type
 }
 
 
-async function handleManualIntervention(page: any) {
+async function handleManualIntervention(page: unknown) {
     const isOktaUrl = (url: string) => /(^https?:\/\/)?[^/]*okta\.com/i.test(url);
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     const isNavigationError = (error: unknown) => {
@@ -307,7 +398,7 @@ async function handleManualIntervention(page: any) {
 
     const injectTracker = async () => {
         try {
-            await page.evaluate(`
+            await (page as any).evaluate(`
         if (!window.genesisaiMonitorInitialized) {
           window.genesisaiLastActivity = Date.now();
           const updateActivity = () => {
@@ -341,7 +432,7 @@ async function handleManualIntervention(page: any) {
                     }
 
                     const frameSnapshots = await Promise.all(
-                        page.frames().map(async (frame: any) => {
+                        ((page as any).frames() as any[]).map(async (frame: any) => {
                             try {
                                 if (frame.isDetached()) {
                                     return {textLength: 0, loginLikeInputs: 0, looksLikePortal: false};
@@ -386,21 +477,21 @@ async function handleManualIntervention(page: any) {
                     looksLikePortal,
                   };
                 })()`);
-                            } catch (error) {
+                            } catch (_error) {
                                 return {textLength: 0, loginLikeInputs: 0, looksLikePortal: false};
                             }
                         })
                     );
 
-                    const pageStatus = await page.evaluate(`(() => ({
+                    const pageStatus = await (page as any).evaluate(`(() => ({
             lastActivity: window.genesisaiLastActivity || Date.now(),
             url: window.location.href,
-          }))()`);
+          }))()`) as { lastActivity: number; url: string };
 
-                    const totalTextLength = frameSnapshots.reduce((sum, frame) => sum + frame.textLength, 0);
-                    const maxFrameTextLength = frameSnapshots.reduce((max, frame) => Math.max(max, frame.textLength), 0);
-                    const loginLikeInputs = frameSnapshots.reduce((sum, frame) => sum + frame.loginLikeInputs, 0);
-                    const looksLikePortal = frameSnapshots.some((frame) => frame.looksLikePortal);
+                    const totalTextLength = (frameSnapshots as any[]).reduce((sum, frame) => sum + frame.textLength, 0);
+                    const maxFrameTextLength = (frameSnapshots as any[]).reduce((max, frame) => Math.max(max, frame.textLength), 0);
+                    const loginLikeInputs = (frameSnapshots as any[]).reduce((sum, frame) => sum + frame.loginLikeInputs, 0);
+                    const looksLikePortal = (frameSnapshots as any[]).some((frame) => frame.looksLikePortal);
                     const inactiveTime = Date.now() - pageStatus.lastActivity;
                     const stillInAuthFlow = isOktaUrl(pageStatus.url);
 

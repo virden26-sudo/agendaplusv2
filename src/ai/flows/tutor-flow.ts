@@ -11,18 +11,24 @@ const tutorFlow = ai.defineFlow(
         const {context, question} = input;
         
         const coursesText = context.courses.length 
-            ? context.courses.map(c => `- **${c.name}**: Current Grade: ${c.grade}%`).join('\n')
+            ? context.courses.map(c => `- **${c.name}**: Current Grade: ${c.grade}%`).join('\n').replace(/[^\S\r\n]+/g, ' ').trim()
             : '- No course data available.';
             
         const assignmentsText = context.assignments.length
-            ? context.assignments.map(a => `- **${a.title}** (Course: ${a.course}), Due: ${a.dueDate}`).join('\n')
+            ? context.assignments.map(a => `- **${a.title}** (Course: ${a.course}), Due: ${a.dueDate}`).join('\n').replace(/[^\S\r\n]+/g, ' ').trim()
             : '- No upcoming assignments.';
             
         const quizzesText = context.quizzes.length
-            ? context.quizzes.map(q => `- **${q.title}** (Course: ${q.course}), Due: ${q.dueDate}`).join('\n')
+            ? context.quizzes.map(q => `- **${q.title}** (Course: ${q.course}), Due: ${q.dueDate}`).join('\n').replace(/[^\S\r\n]+/g, ' ').trim()
             : '- No upcoming quizzes or exams.';
 
         const {output} = await buddIEGenerate({
+            model: 'ollama/genesisai-standalone:latest',
+            config: {
+                num_ctx: 16384,
+                temperature: 0.1,
+            },
+            onChunk: () => {},
             system: `# SYSTEM PROTOCOL: BUDD-IE (v2.0)
 ## Role: Master Systems Architect | World-Class Professor | High-Level Counselor
 

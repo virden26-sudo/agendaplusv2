@@ -10,7 +10,14 @@ const extractItemsFlow = ai.defineFlow(
     },
     async (syllabusText: string) => {
         const currentDate = new Date().toLocaleDateString('en-CA');
+        const cleanedSyllabusText = syllabusText.replace(/[^\S\r\n]+/g, ' ').trim();
         const {output} = await buddIEGenerate({
+            model: 'ollama/genesisai-standalone:latest',
+            config: {
+                num_ctx: 16384,
+                temperature: 0.1,
+            },
+            onChunk: () => {},
             system: `You are an expert-level data extraction AI specializing in academic syllabi. Your goal is to parse unstructured text, identify key academic items, and determine their correct due dates, even when the dates are relative (e.g., "Week 1").`,
             prompt: `**CRITICAL REASONING PROCESS:**
 You MUST follow these steps to ensure accuracy:
@@ -58,7 +65,7 @@ You MUST follow these steps to ensure accuracy:
 
 **Portal Text to Analyze:**
 ---
-${syllabusText}
+${cleanedSyllabusText}
 ---
 
 Perform the extraction based on the rules and reasoning process above. Provide only the structured JSON output.`,

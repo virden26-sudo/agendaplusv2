@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * @fileOverview A flow that parses syllabus text to extract assignments.
  *
@@ -42,8 +40,14 @@ const parseSyllabusTextFlow = ai.defineFlow(
     console.log("GenesisAi: Parsing syllabus text via Ollama...");
 
     try {
+      const cleanedSyllabusText = input.syllabusText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/GenesisAi-Standalone',
+        model: 'ollama/genesisai-standalone:latest',
+        config: {
+          num_ctx: 16384,
+          temperature: 0.1,
+        },
+        onChunk: () => {},
         system: `You are GenesisAi-Standalone, a precise academic extraction system.
         Your mission is to extract every assignment, exam, quiz, and project from the syllabus text.
 
@@ -53,7 +57,7 @@ const parseSyllabusTextFlow = ai.defineFlow(
         - If no year is specified, assume the year from ${currentDate}.`,
         prompt: `Extract all assignments from this syllabus text:
 
-        ${input.syllabusText}`,
+        ${cleanedSyllabusText}`,
         output: { schema: ParseSyllabusTextOutputSchema }
       });
 

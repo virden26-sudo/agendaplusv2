@@ -21,8 +21,14 @@ const parseAssignmentFlow = ai.defineFlow(
   async (input: any) => {
     console.log("GenesisAi: Parsing assignment via Ollama...");
     try {
+      const cleanedAssignmentText = input.assignmentText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/GenesisAi-Standalone',
+        model: 'ollama/genesisai-standalone:latest',
+        config: {
+          num_ctx: 16384,
+          temperature: 0.1,
+        },
+        onChunk: () => {},
         system: `You are GenesisAi-Standalone. Convert natural language into a structured assignment JSON object.
         Output MUST match this schema:
         {
@@ -32,7 +38,7 @@ const parseAssignmentFlow = ai.defineFlow(
           "details": string,
           "priority": "low" | "medium" | "high"
         }`,
-        prompt: `Current Date: ${input.currentDate || new Date().toLocaleDateString()}. Input text: ${input.assignmentText}`,
+        prompt: `Current Date: ${input.currentDate || new Date().toLocaleDateString()}. Input text: ${cleanedAssignmentText}`,
         output: { schema: AssignmentSchema }
       });
 

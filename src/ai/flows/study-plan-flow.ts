@@ -18,9 +18,15 @@ const generateStudyPlanFlow = ai.defineFlow(
     },
     async (assignments: any[]) => {
         const currentDate = new Date().toLocaleDateString();
-        const assignmentsList = assignments.map(a => `- ${a.title} (Course: ${a.course}) - Due: ${a.dueDate}`).join('\n');
+        const assignmentsList = assignments.map(a => `- ${a.title} (Course: ${a.course}) - Due: ${a.dueDate}`).join('\n').replace(/[^\S\r\n]+/g, ' ').trim();
 
         const {output} = await buddIEGenerate({
+            model: 'ollama/genesisai-standalone:latest',
+            config: {
+                num_ctx: 16384,
+                temperature: 0.1,
+            },
+            onChunk: () => {},
             system: `You are an expert academic advisor and productivity coach. Your task is to create a highly detailed, actionable, and effective study plan for a student based on their list of upcoming assignments.`,
             prompt: `Today's date is ${currentDate}. The student needs a clear, strategic plan to master their subjects and prepare for deadlines without cramming.
 

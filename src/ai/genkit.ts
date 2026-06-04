@@ -5,10 +5,10 @@
 const createShim = () => {
   console.log("Genkit: Initializing browser shim.");
 
-  const flowNoop = (config: any, fn: any) => {
+  const flowNoop = (config: unknown, fn?: unknown) => {
     const implementation = typeof config === 'function' ? config : fn;
-    const f = async (input: any) => {
-      console.warn(`Genkit flow "${config?.name || 'unknown'}" called in browser environment.`);
+    const f = async (input: unknown) => {
+      console.warn(`Genkit flow "${(config as {name?: string})?.name || 'unknown'}" called in browser environment.`);
       if (typeof implementation === 'function') {
         return await implementation(input);
       }
@@ -22,9 +22,9 @@ const createShim = () => {
     return flowObj;
   };
 
-  const promptNoop = (config: any) => {
-    const p = async (input: any) => {
-      console.warn(`Genkit prompt "${config?.name || 'unknown'}" called in browser environment.`);
+  const promptNoop = (config: unknown) => {
+    const p = async (_input: unknown) => {
+      console.warn(`Genkit prompt "${(config as {name?: string})?.name || 'unknown'}" called in browser environment.`);
       return { output: { assignments: [], announcements: [], discussions: [] } };
     };
     // Genkit prompts are callable and also have a .run method
@@ -38,12 +38,12 @@ const createShim = () => {
   return {
     defineFlow: flowNoop,
     definePrompt: promptNoop,
-    run: async (nameOrFn: any, fn?: any) => {
+    run: async (nameOrFn: unknown, fn?: unknown) => {
       const actualFn = typeof nameOrFn === 'function' ? nameOrFn : fn;
       if (typeof actualFn === 'function') return actualFn();
       return null;
     },
-    act: async (nameOrFn: any, fn?: any) => {
+    act: async (nameOrFn: unknown, fn?: unknown) => {
       const actualFn = typeof nameOrFn === 'function' ? nameOrFn : fn;
       if (typeof actualFn === 'function') return actualFn();
       return null;
@@ -53,7 +53,7 @@ const createShim = () => {
   };
 };
 
-let aiInstance: any;
+let aiInstance: ReturnType<typeof createShim> | any;
 
 if (typeof window === 'undefined') {
   try {

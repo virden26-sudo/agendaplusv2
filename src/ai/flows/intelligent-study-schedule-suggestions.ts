@@ -1,5 +1,3 @@
-'use client';
-
 /**
  * @fileOverview An AI agent that suggests optimal study times based on a student's schedule,
  * assignment difficulty, and due dates.
@@ -51,8 +49,14 @@ const suggestStudyScheduleFlow = ai.defineFlow(
     console.log("GenesisAi: Generating study schedule suggestions via Ollama...");
 
     try {
+      const cleanedAssignments = input.assignments.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/GenesisAi-Standalone',
+        model: 'ollama/genesisai-standalone:latest',
+        config: {
+          num_ctx: 16384,
+          temperature: 0.1,
+        },
+        onChunk: () => {},
         system: `You are GenesisAi-Standalone, a high-performance academic strategist.
         Your mission is to create an optimized study schedule that maximizes productivity and minimizes stress.
 
@@ -63,7 +67,7 @@ const suggestStudyScheduleFlow = ai.defineFlow(
         - Be encouraging but focused on tactical execution.`,
         prompt: `Create a study schedule for these assignments:
 
-        ${input.assignments}`,
+        ${cleanedAssignments}`,
         output: { schema: StudyScheduleOutputSchema }
       });
 
