@@ -11,7 +11,13 @@ import { Label } from "../ui/label";
 import { Video } from "lucide-react";
 
 export function LiveSessionCard() {
-    const [zoomLink, setZoomLink] = useState(() => readLocalStorage("zoomLink") || "");
+    const [zoomLink, setZoomLink] = useState("");
+
+    React.useEffect(() => {
+        queueMicrotask(() => {
+            setZoomLink(readLocalStorage("zoomLink") || "");
+        });
+    }, []);
     
     const handleZoomLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setZoomLink(e.target.value);

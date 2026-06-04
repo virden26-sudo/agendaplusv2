@@ -49,11 +49,16 @@ function loadStoredQuizzes(): Quiz[] {
 }
 
 export const QuizzesProvider = ({children}: { children: ReactNode }) => {
-    const [quizzes, setQuizzes] = useState<Quiz[]>(() =>
-        typeof window === "undefined" ? [] : loadStoredQuizzes()
-    );
-    const [isInitialized] = useState(() => typeof window !== "undefined");
+    const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+    const [isInitialized, setIsInitialized] = useState(false);
     const [loading, _setLoading] = useState(false);
+
+    useEffect(() => {
+        queueMicrotask(() => {
+            setQuizzes(loadStoredQuizzes());
+            setIsInitialized(true);
+        });
+    }, []);
 
     // Save quizzes to localStorage whenever they change
     useEffect(() => {

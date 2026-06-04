@@ -2,21 +2,22 @@ import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
 
+function subscribeMobile(onStoreChange: () => void) {
+  const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
+  const onChange = () => onStoreChange()
+  mql.addEventListener("change", onChange)
+  window.addEventListener("resize", onChange)
+  return () => {
+    mql.removeEventListener("change", onChange)
+    window.removeEventListener("resize", onChange)
+  }
+}
+
+function getMobileSnapshot() {
+  return window.innerWidth < MOBILE_BREAKPOINT
+}
+
+/** SSR-safe: false on server and during hydration, then tracks viewport. */
 export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState(() =>
-    typeof window !== "undefined" ? window.innerWidth < MOBILE_BREAKPOINT : false
-  )
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-    mql.addEventListener("change", onChange)
-    return () => {
-      mql.removeEventListener("change", onChange)
-    }
-  }, [])
-
-  return isMobile
+  return React.useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false)
 }

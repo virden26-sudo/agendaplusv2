@@ -60,14 +60,14 @@ export function IntelligentSchedulerDialog({open, onOpenChange}: IntelligentSche
     });
 
     useEffect(() => {
-        if (open) {
-            const timeoutId = window.setTimeout(() => {
-                const savedSuggestion = localStorage.getItem("studyPlan");
-                setSuggestion(savedSuggestion ? (JSON.parse(savedSuggestion) as Suggestion) : null);
-            }, 0);
-
-            return () => window.clearTimeout(timeoutId);
+        if (!open) {
+            return;
         }
+
+        queueMicrotask(() => {
+            const savedSuggestion = localStorage.getItem("studyPlan");
+            setSuggestion(savedSuggestion ? (JSON.parse(savedSuggestion) as Suggestion) : null);
+        });
     }, [open]);
 
     async function generateSchedule() {

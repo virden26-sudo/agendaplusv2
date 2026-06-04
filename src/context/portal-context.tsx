@@ -50,13 +50,19 @@ function loadStoredPortalData(): { announcements: Announcement[]; discussions: D
 }
 
 export function PortalProvider({ children }: { children: ReactNode }) {
-  const initialPortal = typeof window === "undefined"
-    ? { announcements: [] as Announcement[], discussions: [] as Discussion[] }
-    : loadStoredPortalData();
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialPortal.announcements);
-  const [discussions, setDiscussions] = useState<Discussion[]>(initialPortal.discussions);
-  const [isInitialized] = useState(() => typeof window !== "undefined");
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [discussions, setDiscussions] = useState<Discussion[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [loading, _setLoading] = useState(false);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      const stored = loadStoredPortalData();
+      setAnnouncements(stored.announcements);
+      setDiscussions(stored.discussions);
+      setIsInitialized(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (isInitialized) {

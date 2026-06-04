@@ -104,9 +104,13 @@ export function AppShell({children}: { children: React.ReactNode }) {
     const [portalPasswordInput, setPortalPasswordInput] = React.useState("");
     const [portalSyncOpen, setPortalSyncOpen] = React.useState(false);
     const [hasAttemptedStartupSync, setHasAttemptedStartupSync] = React.useState(false);
-    const [hasPersistentPortalSession, setHasPersistentPortalSession] = React.useState(
-        () => readLocalStorage("portalSessionReady") === "true"
-    );
+    const [hasPersistentPortalSession, setHasPersistentPortalSession] = React.useState(false);
+
+    React.useEffect(() => {
+        queueMicrotask(() => {
+            setHasPersistentPortalSession(readLocalStorage("portalSessionReady") === "true");
+        });
+    }, []);
 
     const processSyncResult = React.useCallback((result: PortalSyncResult) => {
         console.log("AppShell: processSyncResult counts", {
@@ -203,8 +207,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         if (!user || !portalUrl) {
-            const frame = requestAnimationFrame(() => setOnboardingOpen(true));
-            return () => cancelAnimationFrame(frame);
+            queueMicrotask(() => setOnboardingOpen(true));
         }
     }, [isUserLoaded, portalUrl, user]);
 

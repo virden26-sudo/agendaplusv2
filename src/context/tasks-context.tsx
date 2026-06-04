@@ -42,11 +42,16 @@ function loadStoredTasks(): Task[] {
 }
 
 export const TasksProvider = ({children}: { children: ReactNode }) => {
-    const [tasks, setTasks] = useState<Task[]>(() =>
-        typeof window === "undefined" ? [] : loadStoredTasks()
-    );
-    const [isInitialized] = useState(() => typeof window !== "undefined");
+    const [tasks, setTasks] = useState<Task[]>([]);
+    const [isInitialized, setIsInitialized] = useState(false);
     const [loading, _setLoading] = useState(false);
+
+    useEffect(() => {
+        queueMicrotask(() => {
+            setTasks(loadStoredTasks());
+            setIsInitialized(true);
+        });
+    }, []);
 
     // Save tasks to localStorage whenever they change
     useEffect(() => {

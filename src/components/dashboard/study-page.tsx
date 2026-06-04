@@ -15,10 +15,14 @@ import { readLocalStorage } from "@/lib/storage";
 
 export function StudyPage() {
   const { portalUrl: savedPortalUrl, setPortalUrl: savePortalUrl } = useUser();
-  const [portalUrl, setPortalUrl] = useState(
-    () => savedPortalUrl || readLocalStorage("studentPortalUrl") || "https://navigate.nu.edu/d2l/home"
-  );
+  const [portalUrl, setPortalUrl] = useState("https://navigate.nu.edu/d2l/home");
   const [schedulerOpen, setSchedulerOpen] = useState(false);
+
+  React.useEffect(() => {
+    const resolved =
+      savedPortalUrl || readLocalStorage("studentPortalUrl") || "https://navigate.nu.edu/d2l/home";
+    queueMicrotask(() => setPortalUrl(resolved));
+  }, [savedPortalUrl]);
 
   const handlePortalUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPortalUrl(e.target.value);

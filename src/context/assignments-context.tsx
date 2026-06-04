@@ -41,11 +41,16 @@ function loadStoredAssignments(): Assignment[] {
 }
 
 export function AssignmentsProvider({ children }: { children: ReactNode }) {
-  const [assignments, setAssignments] = useState<Assignment[]>(() =>
-    typeof window === "undefined" ? [] : loadStoredAssignments()
-  );
-  const [isInitialized] = useState(() => typeof window !== "undefined");
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [loading, _setLoading] = useState(false);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setAssignments(loadStoredAssignments());
+      setIsInitialized(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (isInitialized) {

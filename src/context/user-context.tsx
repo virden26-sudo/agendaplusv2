@@ -15,9 +15,17 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(() => readLocalStorageJson<User>("agendaUser"));
-    const [portalUrl, setPortalUrl] = useState(() => readLocalStorage("studentPortalUrl") || "");
-    const [isUserLoaded] = useState(() => typeof window !== "undefined");
+    const [user, setUser] = useState<User | null>(null);
+    const [portalUrl, setPortalUrl] = useState("");
+    const [isUserLoaded, setIsUserLoaded] = useState(false);
+
+    React.useEffect(() => {
+        queueMicrotask(() => {
+            setUser(readLocalStorageJson<User>("agendaUser"));
+            setPortalUrl(readLocalStorage("studentPortalUrl") || "");
+            setIsUserLoaded(true);
+        });
+    }, []);
 
     const handleSetUser = (newUser: User | null) => {
         if (typeof window !== "undefined") {

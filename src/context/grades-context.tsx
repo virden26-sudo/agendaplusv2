@@ -29,11 +29,16 @@ function loadStoredCourses(): Course[] {
 }
 
 export function GradesProvider({ children }: { children: ReactNode }) {
-  const [courses, setCourses] = useState<Course[]>(() =>
-    typeof window === "undefined" ? [] : loadStoredCourses()
-  );
+  const [courses, setCourses] = useState<Course[]>([]);
   const [loading] = useState(false);
-  const [isInitialized] = useState(() => typeof window !== "undefined");
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      setCourses(loadStoredCourses());
+      setIsInitialized(true);
+    });
+  }, []);
 
   useEffect(() => {
     if (isInitialized) {

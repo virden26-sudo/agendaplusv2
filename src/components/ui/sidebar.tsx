@@ -660,10 +660,10 @@ const SidebarMenuSkeleton = React.forwardRef<
 >(({ className, showIcon = false, ...props }, ref) => {
   const [width, setWidth] = React.useState("70%")
   React.useEffect(() => {
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setWidth(`${Math.floor(Math.random() * 40) + 50}%`)
     }, 0)
-    return () => clearTimeout(timer)
+    return () => window.clearTimeout(timer)
   }, [])
 
   return (

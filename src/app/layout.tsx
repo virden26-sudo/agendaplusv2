@@ -8,7 +8,6 @@ import { QuizzesProvider } from '@/context/quizzes-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { UserProvider } from '@/context/user-context';
 import { AppShell } from '@/components/layout/app-shell';
-
 import { Roboto, Dancing_Script } from 'next/font/google';
 
 const roboto = Roboto({
