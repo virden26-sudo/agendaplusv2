@@ -9,7 +9,6 @@ import {
     Calendar,
     FileUp,
     Globe,
-    Loader2,
     Megaphone,
     Plus,
     Settings,
@@ -46,7 +45,8 @@ import {
 import {Input} from "@/components/ui/input";
 import {Label} from "@/components/ui/label";
 import {Logo} from "@/components/icons";
-import {Progress} from "@/components/ui/progress";
+
+import {PortalSyncDialog, type PortalSyncDialogResult} from "@/components/portal/portal-sync-dialog";
 import {
     SheetHeader,
     SheetTitle,
@@ -76,34 +76,22 @@ import {useAssignments} from "@/context/assignments-context";
 import {useGrades} from "@/context/grades-context";
 import {usePortal} from "@/context/portal-context";
 import {useUser} from "@/context/user-context";
-import {apiFetch} from "@/lib/api-config";
-import type {Announcement, Discussion} from "@/lib/types";
-import type {ParsedAssignment} from "@/ai/schemas/assignment";
+import {readLocalStorage} from "@/lib/storage";
 
 const AddAssignmentDialog = dynamic(() => import("../dashboard/add-assignment-dialog").then(mod => mod.AddAssignmentDialog), {ssr: false});
 const ImportSyllabusDialog = dynamic(() => import("../dashboard/import-syllabus-dialog").then(mod => mod.ImportSyllabusDialog), {ssr: false});
 const IntelligentSchedulerDialog = dynamic(() => import("../dashboard/intelligent-scheduler-dialog").then(mod => mod.IntelligentSchedulerDialog), {ssr: false});
 const OnboardingDialog = dynamic(() => import("../dashboard/onboarding-dialog").then(mod => mod.OnboardingDialog), {ssr: false});
 
-type PortalSyncResult = {
-    assignments?: ParsedAssignment[];
-    announcements?: Array<Partial<Announcement> & { title: string; date?: string | Date | null }>;
-    discussions?: Array<Partial<Discussion> & {
-        title: string;
-        postedDate: string | Date;
-        dueDate?: string | Date | null
-    }>;
-    quizzes?: ParsedAssignment[];
-    grades?: Array<{ course: string; grade: string; details?: string | null }>;
-};
+type PortalSyncResult = PortalSyncDialogResult;
 
 export function AppShell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
     const {toast} = useToast();
     const {assignments, addMultipleAssignments, loading: assignmentsLoading} = useAssignments();
     const {courses, setCourses} = useGrades();
-    const {announcements, addAnnouncements, addDiscussions, loading: portalLoading} = usePortal();
-    const {user, setUser, portalUrl, setPortalUrl, backendUrl, setBackendUrl, isUserLoaded} = useUser();
+    const {announcements, discussions, addAnnouncements, addDiscussions, loading: portalLoading} = usePortal();
+    const {user, setUser, portalUrl, setPortalUrl, isUserLoaded} = useUser();
 
     const [addAssignmentOpen, setAddAssignmentOpen] = React.useState(false);
     const [schedulerOpen, setSchedulerOpen] = React.useState(false);
@@ -112,19 +100,13 @@ export function AppShell({children}: { children: React.ReactNode }) {
     const [settingsOpen, setSettingsOpen] = React.useState(false);
     const [resetDialogOpen, setResetDialogOpen] = React.useState(false);
     const [portalUrlInput, setPortalUrlInput] = React.useState("");
-    const [backendUrlInput, setBackendUrlInput] = React.useState("");
     const [portalUsernameInput, setPortalUsernameInput] = React.useState("");
     const [portalPasswordInput, setPortalPasswordInput] = React.useState("");
-    const [isStartupSyncing, setIsStartupSyncing] = React.useState(false);
-    const [isBackgroundSyncing, setIsBackgroundSyncing] = React.useState(false);
+    const [portalSyncOpen, setPortalSyncOpen] = React.useState(false);
     const [hasAttemptedStartupSync, setHasAttemptedStartupSync] = React.useState(false);
-    const [hasPersistentPortalSession, setHasPersistentPortalSession] = React.useState(false);
-
-    React.useEffect(() => {
-        if (typeof window !== "undefined") {
-            setHasPersistentPortalSession(localStorage.getItem("portalSessionReady") === "true");
-        }
-    }, []);
+    const [hasPersistentPortalSession, setHasPersistentPortalSession] = React.useState(
+        () => readLocalStorage("portalSessionReady") === "true"
+    );
 
     const processSyncResult = React.useCallback((result: PortalSyncResult) => {
         console.log("AppShell: processSyncResult counts", {
@@ -141,6 +123,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
         ];
 
         if (allTasks.length) {
+            console.log(`AppShell: Adding ${allTasks.length} tasks to context...`);
             addMultipleAssignments(
                 allTasks.map((assignment) => ({
                     ...assignment,
@@ -150,26 +133,28 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         if (result.announcements?.length) {
+            console.log(`AppShell: Adding ${result.announcements.length} announcements...`);
             addAnnouncements(
                 result.announcements.map((announcement) => ({
                     id: uuidv4(),
                     ...announcement,
                     course: announcement.course || "General",
                     content: announcement.content || "",
-                    important: Boolean(announcement.important),
+                    important: Boolean((announcement as { important?: boolean }).important),
                     date: announcement.date ? new Date(announcement.date) : new Date(),
                 }))
             );
         }
 
         if (result.discussions?.length) {
+            console.log(`AppShell: Adding ${result.discussions.length} discussions...`);
             addDiscussions(
                 result.discussions.map((discussion) => ({
                     id: uuidv4(),
                     ...discussion,
                     course: discussion.course || "General",
                     content: discussion.content || undefined,
-                    author: discussion.author || undefined,
+                    author: (discussion as { author?: string }).author || undefined,
                     postedDate: new Date(discussion.postedDate),
                     dueDate: discussion.dueDate ? new Date(discussion.dueDate) : undefined,
                 }))
@@ -177,135 +162,51 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         if (result.grades?.length) {
+            console.log(`AppShell: Adding ${result.grades.length} grades...`);
             const newCourses = result.grades.map(g => {
-                // Try to parse grade like "95%" or "4.0" to a number
                 const gradeStr = g.grade || "0";
                 const gradeNum = parseFloat(gradeStr.replace(/[^0-9.]/g, ''));
-
                 return {
                     id: uuidv4(),
                     name: g.course || "Extracted Course",
                     grade: isNaN(gradeNum) ? 0 : gradeNum
                 };
             });
-
             setCourses(newCourses);
         }
 
+        const importedCount =
+            allTasks.length +
+            (result.announcements?.length ?? 0) +
+            (result.discussions?.length ?? 0) +
+            (result.grades?.length ?? 0);
+
         localStorage.setItem("lastAutoSync", Date.now().toString());
-        // ALWAYS set portalSessionReady to true if we got a result, even if empty,
-        // to prevent infinite startup sync loops if the portal is actually empty.
-        localStorage.setItem("portalSessionReady", "true");
-        setHasPersistentPortalSession(true);
-    }, [addAnnouncements, addDiscussions, addMultipleAssignments, setCourses]);
-    const isRemoteBrowserClient = React.useCallback(() => {
-        if (typeof window === "undefined") {
-            return false;
+
+        if (importedCount > 0) {
+            localStorage.setItem("portalSessionReady", "true");
+            setHasPersistentPortalSession(true);
+        } else {
+            console.warn("AppShell: Portal sync returned no items; session flag not set.");
         }
 
-        const {hostname, protocol} = window.location;
-        return protocol.startsWith("http") && hostname !== "localhost" && hostname !== "127.0.0.1";
+        return importedCount;
+    }, [addAnnouncements, addDiscussions, addMultipleAssignments, setCourses]);
+
+    const runPortalSync = React.useCallback(() => {
+        setPortalSyncOpen(true);
     }, []);
 
-    const runPortalSync = React.useCallback(async (mode: "startup" | "manual" | "background") => {
-        if (isRemoteBrowserClient()) {
-            console.log(`AppShell: Skipping backend browser scraper from remote client (${mode}).`);
-            if (mode === "manual") {
-                window.open(portalUrl, "_blank", "noopener,noreferrer");
-                toast({
-                    title: "Portal Opened On This Device",
-                    description: "Agenda+ will not open a browser on your computer while you are using the app from your phone.",
-                });
-            }
-
-            if (mode === "startup") {
-                setHasAttemptedStartupSync(true);
-            }
-
+    React.useEffect(() => {
+        if (!isUserLoaded) {
             return;
         }
 
-        const setSyncState = mode === "background" ? setIsBackgroundSyncing : setIsStartupSyncing;
-        console.log(`AppShell: runPortalSync started (mode: ${mode})`);
-        setSyncState(true);
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-            controller.abort("The portal sync operation timed out after 5 minutes and 10 seconds.");
-        }, 990000); // 310s timeout to give server's 300s timeout priority
-
-        try {
-            console.log("AppShell: Fetching /api/parse-portal through backend resolver...");
-            const response = await apiFetch("/api/parse-portal", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                signal: controller.signal,
-                body: JSON.stringify({
-                    url: portalUrl,
-                    username: user?.portalUsername,
-                    password: user?.portalPassword,
-                    currentDate: new Date().toLocaleDateString("en-CA"),
-                }),
-            });
-
-            console.log(`AppShell: /api/parse-portal response status: ${response.status}`);
-
-            const responseText = await response.text();
-            let result: PortalSyncResult & { error?: string };
-            try {
-                result = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error("AppShell: Portal sync parse error", parseError, responseText.slice(0, 100));
-                throw new Error("Agenda+ reached a local service, but it did not return portal data. The app will keep trying available local backends; restart the app if the local service just started.");
-            }
-
-            if (!response.ok) {
-                throw new Error(result.error || `Portal sync failed (${response.status})`);
-            }
-
-            console.log("AppShell: Received result from /api/parse-portal", {
-                hasAssignments: !!result.assignments,
-                hasAnnouncements: !!result.announcements,
-                hasDiscussions: !!result.discussions,
-                hasQuizzes: !!result.quizzes,
-                hasGrades: !!result.grades
-            });
-            processSyncResult(result);
-
-            if (mode !== "background") {
-                toast({
-                    title: "Portal Sync Complete",
-                    description: "GenesisAI opened a monitored browser session and refreshed the dashboard.",
-                });
-            }
-        } catch (error: unknown) {
-            const isAborted = error instanceof Error && (error.name === 'AbortError' || (error instanceof DOMException && error.name === 'AbortError'));
-            
-            if (isAborted) {
-                console.warn("AppShell: Portal sync request was aborted (timeout or manual).", (error as Error).message);
-                toast({
-                    variant: "destructive",
-                    title: "Portal Sync Timed Out",
-                    description: (error as Error).message || "The monitored browser session did not return usable portal data.",
-                });
-            } else {
-                console.error("AppShell: Portal sync failed", error);
-                toast({
-                    title: "Manual Sync Suggested",
-                    description: "Automatic scan requires your computer. Use 'Manual Sync' in the Portal tab to paste data directly!",
-                });
-            }
-        } finally {
-            clearTimeout(timeoutId);
-            console.log(`AppShell: runPortalSync finished (mode: ${mode})`);
-            if (mode === "startup") {
-                setHasAttemptedStartupSync(true);
-            }
-            setSyncState(false);
+        if (!user || !portalUrl) {
+            const frame = requestAnimationFrame(() => setOnboardingOpen(true));
+            return () => cancelAnimationFrame(frame);
         }
-    }, [isRemoteBrowserClient, portalUrl, processSyncResult, toast, user]);
+    }, [isUserLoaded, portalUrl, user]);
 
     React.useEffect(() => {
         if (!isUserLoaded) {
@@ -314,18 +215,18 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         if (!user || !portalUrl) {
-            console.log("AppShell: No user or portalUrl, opening onboarding");
-            setTimeout(() => setOnboardingOpen(true), 0);
             return;
         }
 
+        const dashboardEmpty =
+            assignments.length === 0 &&
+            announcements.length === 0 &&
+            discussions.length === 0;
         const shouldStartupSync =
-            (!hasPersistentPortalSession || (user?.portalUsername && user?.portalPassword)) &&
             !hasAttemptedStartupSync &&
             !assignmentsLoading &&
             !portalLoading &&
-            assignments.length === 0 &&
-            announcements.length === 0 &&
+            dashboardEmpty &&
             portalUrl;
 
         console.log("AppShell: Sync check", {
@@ -340,37 +241,19 @@ export function AppShell({children}: { children: React.ReactNode }) {
         });
 
         if (shouldStartupSync) {
-            console.log("AppShell: Triggering startup sync");
-            setTimeout(() => {
-                void runPortalSync("startup");
-            }, 0);
+            queueMicrotask(() => {
+                setHasAttemptedStartupSync(true);
+                runPortalSync();
+            });
         }
-    }, [announcements.length, assignments.length, assignmentsLoading, hasAttemptedStartupSync, hasPersistentPortalSession, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
+    }, [announcements.length, assignments.length, assignmentsLoading, discussions.length, hasAttemptedStartupSync, hasPersistentPortalSession, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
 
-    React.useEffect(() => {
-        if (!hasPersistentPortalSession || !hasAttemptedStartupSync || !portalUrl) {
-            return;
-        }
-
-        const intervalId = window.setInterval(() => {
-            if (!isStartupSyncing && !isBackgroundSyncing) {
-                void runPortalSync("background");
-            }
-        }, 10 * 60 * 1000);
-
-        return () => window.clearInterval(intervalId);
-    }, [hasAttemptedStartupSync, hasPersistentPortalSession, isBackgroundSyncing, isStartupSyncing, portalUrl, runPortalSync]);
-
-    React.useEffect(() => {
-        if (settingsOpen) {
-            setTimeout(() => {
-                setPortalUrlInput(portalUrl);
-                setBackendUrlInput(backendUrl);
-                setPortalUsernameInput(user?.portalUsername || "");
-                setPortalPasswordInput(user?.portalPassword || "");
-            }, 0);
-        }
-    }, [settingsOpen, portalUrl, backendUrl, user?.portalUsername, user?.portalPassword]);
+    const openSettings = () => {
+        setPortalUrlInput(portalUrl);
+        setPortalUsernameInput(user?.portalUsername || "");
+        setPortalPasswordInput(user?.portalPassword || "");
+        setSettingsOpen(true);
+    };
 
     const handleSettingsSave = () => {
         const nextUrl = portalUrlInput.trim();
@@ -379,7 +262,6 @@ export function AppShell({children}: { children: React.ReactNode }) {
         }
 
         setPortalUrl(nextUrl);
-        setBackendUrl(backendUrlInput.trim());
         if (user) {
             setUser({
                 ...user,
@@ -479,7 +361,6 @@ export function AppShell({children}: { children: React.ReactNode }) {
     };
 
     const pageTitle = pageTitles[pathname] || "";
-    const isSyncing = isStartupSyncing || isBackgroundSyncing;
 
     return (
         <SidebarProvider>
@@ -511,7 +392,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                             <Button
                                 variant="outline"
                                 className="h-10 w-full justify-start border-primary/50 text-primary hover:bg-primary/5"
-                                onClick={() => void runPortalSync("manual")}
+                                onClick={runPortalSync}
                             >
                                 <Sparkles className="mr-2 size-4"/>
                                 <span className="group-data-[collapsible=icon]:hidden">Rescan Portal</span>
@@ -572,12 +453,12 @@ export function AppShell({children}: { children: React.ReactNode }) {
                                 <DropdownMenuSeparator/>
                                 <DropdownMenuItem onClick={() => {
                                     setPortalUrlInput(portalUrl);
-                                    setSettingsOpen(true);
+                                    openSettings();
                                 }}>
                                     Portal Settings
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={handlePortalClick}>Open Portal</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => void runPortalSync("manual")}>Rescan
+                                <DropdownMenuItem onClick={runPortalSync}>Rescan
                                     Portal</DropdownMenuItem>
                                 <DropdownMenuSeparator/>
                                 <DropdownMenuItem
@@ -591,10 +472,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                         </DropdownMenu>
 
                         <SidebarMenuItem>
-                            <SidebarMenuButton className="h-auto justify-start" onClick={() => {
-                                setPortalUrlInput(portalUrl);
-                                setSettingsOpen(true);
-                            }}>
+                            <SidebarMenuButton className="h-auto justify-start" onClick={openSettings}>
                                 <Avatar className="mr-2 size-8">
                                     {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name || ""}
                                                                      data-ai-hint="person portrait"/>}
@@ -625,11 +503,11 @@ export function AppShell({children}: { children: React.ReactNode }) {
                         <div
                             className="hidden items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 lg:flex">
                             <div className="size-2 rounded-full bg-green-500 animate-pulse"/>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">GenesisAI: Browser Monitor</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">On-device sync</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" className="hidden md:flex"
-                                    onClick={() => void runPortalSync("manual")}>
+                                    onClick={runPortalSync}>
                                 <Sparkles className="mr-2 size-4"/>
                                 Rescan
                             </Button>
@@ -638,7 +516,7 @@ export function AppShell({children}: { children: React.ReactNode }) {
                                 Share
                             </Button>
                             <Button variant="outline" size="icon" className="md:hidden"
-                                    onClick={() => void runPortalSync("manual")}>
+                                    onClick={runPortalSync}>
                                 <Sparkles className="size-4"/>
                                 <span className="sr-only">Rescan Portal</span>
                             </Button>
@@ -650,76 +528,36 @@ export function AppShell({children}: { children: React.ReactNode }) {
                     </div>
                 </header>
                 <div className="relative flex flex-1 flex-col gap-4 overflow-hidden p-4 lg:gap-6 lg:p-6">
-                    {isSyncing ? (
-                        <div
-                            className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-background/95 backdrop-blur-md transition-all duration-500">
-                            <div
-                                className="max-w-md space-y-8 px-6 text-center animate-in fade-in zoom-in duration-300">
-                                <div className="relative inline-block">
-                                    <Loader2 className="size-24 animate-spin text-primary opacity-20"/>
-                                    <Sparkles
-                                        className="absolute left-1/2 top-1/2 size-12 -translate-x-1/2 -translate-y-1/2 animate-pulse text-primary"/>
-                                </div>
-                                <div className="space-y-3">
-                                    <h2 className="font-headline text-3xl font-bold text-gradient">GenesisAI Is
-                                        Monitoring Your Portal</h2>
-                                    <p className="text-lg leading-relaxed text-muted-foreground">
-                                        A monitored browser window is open for your school portal. Finish logging in
-                                        there and GenesisAI will silently extract fresh data before revealing the
-                                        dashboard.
-                                    </p>
-                                </div>
-                                <div className="space-y-4">
-                                    <Progress value={undefined} className="h-3"/>
-                                    <p className="animate-pulse font-mono text-xs text-primary uppercase">Autonomous
-                                        Agent Active
-                                        - Watching Login State</p>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-muted-foreground hover:text-foreground"
-                                        onClick={() => {
-                                            setIsStartupSyncing(false);
-                                            setIsBackgroundSyncing(false);
-                                            setHasAttemptedStartupSync(true);
-                                        }}
-                                    >
-                                        Skip & Continue to Dashboard
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        children
-                    )}
+                    {children}
                 </div>
             </SidebarInset>
             <AddAssignmentDialog open={addAssignmentOpen} onOpenChange={setAddAssignmentOpen}/>
             <IntelligentSchedulerDialog open={schedulerOpen} onOpenChange={setSchedulerOpen}/>
             <ImportSyllabusDialog open={importSyllabusOpen} onOpenChange={setImportSyllabusOpen}/>
-            <OnboardingDialog open={onboardingOpen} onOpenChange={setOnboardingOpen}/>
+            <OnboardingDialog
+                open={onboardingOpen}
+                onOpenChange={(open) => {
+                    setOnboardingOpen(open);
+                    if (!open && user && portalUrl) {
+                        runPortalSync();
+                    }
+                }}
+            />
+            <PortalSyncDialog
+                open={portalSyncOpen}
+                onOpenChange={setPortalSyncOpen}
+                portalUrl={portalUrl}
+                onImported={processSyncResult}
+            />
             <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <UIDialogTitle className="font-header text-2xl text-gradient">Portal Monitor
-                            Settings</UIDialogTitle>
+                        <UIDialogTitle className="font-header text-2xl text-gradient">Portal settings</UIDialogTitle>
                         <DialogDescription>
-                            GenesisAI opens this portal in a monitored browser session at startup and during rescans.
+                            Your portal link is used when you sync. All parsing happens on this device.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="backend-url">AI Backend URL (Optional)</Label>
-                            <Input
-                                id="backend-url"
-                                placeholder="e.g. http://192.168.1.5:9002"
-                                value={backendUrlInput}
-                                onChange={(event) => setBackendUrlInput(event.target.value)}
-                            />
-                            <p className="text-[10px] text-muted-foreground">
-                                Leave blank to use defaults. Use your computer&apos;s IP for mobile testing.
-                            </p>
-                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="portal-url">Student Portal URL</Label>
                             <Input

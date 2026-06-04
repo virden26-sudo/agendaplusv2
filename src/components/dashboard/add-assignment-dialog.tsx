@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { parseAssignmentText } from "@/lib/local-api";
 import { type Assignment as ParsedAssignment } from '@/ai/schemas/assignment';
 import { Bot, Loader2, Sparkles } from "lucide-react";
 import { useAssignments } from "@/context/assignments-context";
@@ -53,24 +54,13 @@ export function AddAssignmentDialog({ open, onOpenChange }: AddAssignmentDialogP
     setIsParsing(true);
     setParsedData(null);
     try {
-      const response = await fetch('/api/parse-assignment/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ assignmentText: values.naturalInput }),
-      });
-
-      if (!response.ok) throw new Error("Failed to parse assignment");
-
-      const result = await response.json();
-      setParsedData(result);
+      setParsedData(parseAssignmentText(values.naturalInput));
     } catch (error) {
       console.error(error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Could not parse assignment. Please try again.",
+        title: "Could not parse",
+        description: "Try describing the assignment with a due date, e.g. \"Bio essay due Friday\".",
       });
     } finally {
       setIsParsing(false);

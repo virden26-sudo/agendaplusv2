@@ -24,37 +24,40 @@ export const useTasks = () => {
     return context;
 };
 
-function loadTasksFromStorage(): Task[] {
-    if (typeof window === "undefined") return [];
+// Create the provider component
+function loadStoredTasks(): Task[] {
     try {
         const storedTasks = localStorage.getItem("agendaTasks");
         if (!storedTasks) return [];
-        return JSON.parse(storedTasks).map((t: Task & { dueDate?: string | Date }) => ({
+        const parsed = JSON.parse(storedTasks);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((t: Task & { dueDate?: string }) => ({
             ...t,
             dueDate: t.dueDate ? new Date(t.dueDate) : undefined,
         }));
     } catch (error) {
-        console.error("Failed to load tasks", error);
-        localStorage.removeItem("agendaTasks");
+        console.error("Failed to load tasks from localStorage", error);
         return [];
     }
 }
 
-// Create the provider component
 export const TasksProvider = ({children}: { children: ReactNode }) => {
-    const [tasks, setTasks] = useState<Task[]>(loadTasksFromStorage);
-    const [loading, setLoading] = useState(false);
+    const [tasks, setTasks] = useState<Task[]>(() =>
+        typeof window === "undefined" ? [] : loadStoredTasks()
+    );
+    const [isInitialized] = useState(() => typeof window !== "undefined");
+    const [loading, _setLoading] = useState(false);
 
     // Save tasks to localStorage whenever they change
     useEffect(() => {
-        if (!loading) {
+        if (isInitialized) {
             try {
                 localStorage.setItem('agendaTasks', JSON.stringify(tasks));
             } catch (error) {
                 console.error("Failed to save tasks to local storage", error);
             }
         }
-    }, [tasks, loading]);
+    }, [tasks, isInitialized]);
 
     const addTask = useCallback((task: Omit<Task, 'id' | 'completed' | 'priority'> & { priority?: 'low' | 'medium' | 'high' }) => {
         const newTask: Task = {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   Card,
   CardContent,
@@ -54,7 +54,6 @@ export function GradeOverview() {
         <CardContent className="min-h-[250px]">
           {!loading && courses.length > 0 ? (
              <ChartContainer config={chartConfig} className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
                 <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid vertical={false} />
                   <XAxis
@@ -71,8 +70,7 @@ export function GradeOverview() {
                   />
                   <Bar dataKey="grade" fill="var(--color-grade)" radius={5} />
                 </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
+             </ChartContainer>
           ) : (
              <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted-foreground">
                 <CircleOff className="size-10 mb-4" />

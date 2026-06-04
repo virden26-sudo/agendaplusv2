@@ -7,8 +7,8 @@ test.describe('Production Build', () => {
 
     // Check if we are loading or on the dashboard
     // If it's static, it might show the loader first or the content
-    const loader = page.locator('text=Syncing your academic universe...');
-    const welcome = page.locator('text=Welcome'); // WelcomeHeader likely contains this
+    const _loader = page.locator('text=Syncing your academic universe...');
+    const _welcome = page.locator('text=Welcome'); // WelcomeHeader likely contains this
 
     // Wait for either the loader or the content
     await expect(page).toHaveTitle(/Agenda\+/);

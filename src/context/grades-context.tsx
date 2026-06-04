@@ -12,40 +12,34 @@ interface GradesContextType {
 
 const GradesContext = createContext<GradesContextType | undefined>(undefined);
 
-export function GradesProvider({ children }: { children: ReactNode }) {
-  const [courses, setCourses] = useState<Course[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedGrades = localStorage.getItem('agendaGrades');
-        if (storedGrades) {
-          const parsed = JSON.parse(storedGrades);
-          if (Array.isArray(parsed)) {
-            return parsed.map((c: any) => ({
-              ...c,
-              id: c.id || uuidv4(),
-            }));
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse grades from localStorage", error);
-      }
-    }
+function loadStoredCourses(): Course[] {
+  try {
+    const storedGrades = localStorage.getItem('agendaGrades');
+    if (!storedGrades) return [];
+    const parsed = JSON.parse(storedGrades);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((c: Course & { id?: string }) => ({
+      ...c,
+      id: c.id || uuidv4(),
+    }));
+  } catch (error) {
+    console.error("Failed to parse grades from localStorage", error);
     return [];
-  });
-  const [loading, setLoading] = useState(true);
+  }
+}
+
+export function GradesProvider({ children }: { children: ReactNode }) {
+  const [courses, setCourses] = useState<Course[]>(() =>
+    typeof window === "undefined" ? [] : loadStoredCourses()
+  );
+  const [loading] = useState(false);
+  const [isInitialized] = useState(() => typeof window !== "undefined");
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 0);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
+    if (isInitialized) {
         localStorage.setItem('agendaGrades', JSON.stringify(courses));
     }
-  }, [courses, loading]);
+  }, [courses, isInitialized]);
 
   const handleSetCourses = (newCourses: Course[]) => {
     const coursesWithIds = newCourses.map(c => ({

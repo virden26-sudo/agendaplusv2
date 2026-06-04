@@ -24,37 +24,34 @@ const getPriority = (dueDate: Date): 'low' | 'medium' | 'high' => {
     return 'low';
 };
 
-export function AssignmentsProvider({ children }: { children: ReactNode }) {
-  const [assignments, setAssignments] = useState<Assignment[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedAssignments = localStorage.getItem('agendaAssignments');
-        if (storedAssignments) {
-          const parsed = JSON.parse(storedAssignments);
-          if (Array.isArray(parsed)) {
-            return parsed.map((a: any) => ({
-              ...a,
-              dueDate: new Date(a.dueDate),
-            }));
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse assignments from localStorage", error);
-      }
-    }
+function loadStoredAssignments(): Assignment[] {
+  try {
+    const storedAssignments = localStorage.getItem('agendaAssignments');
+    if (!storedAssignments) return [];
+    const parsed = JSON.parse(storedAssignments);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((a: Assignment & { dueDate: string }) => ({
+      ...a,
+      dueDate: new Date(a.dueDate),
+    }));
+  } catch (error) {
+    console.error("Failed to parse assignments from localStorage", error);
     return [];
-  });
-  const [loading, setLoading] = useState(true);
+  }
+}
+
+export function AssignmentsProvider({ children }: { children: ReactNode }) {
+  const [assignments, setAssignments] = useState<Assignment[]>(() =>
+    typeof window === "undefined" ? [] : loadStoredAssignments()
+  );
+  const [isInitialized] = useState(() => typeof window !== "undefined");
+  const [loading, _setLoading] = useState(false);
 
   useEffect(() => {
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-        localStorage.setItem('agendaAssignments', JSON.stringify(assignments));
+    if (isInitialized) {
+      localStorage.setItem('agendaAssignments', JSON.stringify(assignments));
     }
-  }, [assignments, loading]);
+  }, [assignments, isInitialized]);
 
   const addAssignment = (assignment: Omit<Assignment, 'id' | 'completed' | 'priority' | 'dueDate'> & {dueDate: string | Date}) => {
     const dueDate = new Date(assignment.dueDate);
@@ -69,19 +66,37 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
   };
 
   const addMultipleAssignments = (newAssignments: ParsedAssignment[]) => {
-    const assignmentsToAdd: Assignment[] = newAssignments.map(a => {
-        const dueDate = new Date(a.dueDate || new Date());
-        return {
-            id: uuidv4(),
-            title: a.task,
-            course: a.course || 'Uncategorized',
-            details: a.details || undefined,
-            dueDate: dueDate,
-            completed: false,
-            priority: getPriority(dueDate),
+    setAssignments(prev => {
+        const existingMap = new Map(prev.map(a => [`${a.title.toLowerCase()}|${a.course.toLowerCase()}`, a]));
+        const assignmentsToAdd: Assignment[] = [];
+
+        for (const a of newAssignments) {
+            const task = (a.task || "").trim();
+            if (!task || /^untitled(\s+assignment|\s+quiz)?$/i.test(task)) {
+                continue;
+            }
+
+            const key = `${task.toLowerCase()}|${(a.course || 'Uncategorized').toLowerCase()}`;
+            if (!existingMap.has(key)) {
+                const dueDate = a.dueDate ? new Date(a.dueDate) : new Date();
+                if (Number.isNaN(dueDate.getTime())) {
+                    continue;
+                }
+                assignmentsToAdd.push({
+                    id: uuidv4(),
+                    title: task,
+                    course: a.course || 'Uncategorized',
+                    details: a.details || undefined,
+                    dueDate: dueDate,
+                    completed: false,
+                    priority: getPriority(dueDate),
+                });
+            }
         }
+
+        if (assignmentsToAdd.length === 0) return prev;
+        return [...prev, ...assignmentsToAdd];
     });
-    setAssignments(prev => [...prev, ...assignmentsToAdd]);
   };
 
 

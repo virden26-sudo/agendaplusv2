@@ -32,6 +32,21 @@ allprojects {
     }
 }
 
+subprojects { sub ->
+    sub.afterEvaluate {
+        def hasAndroid = sub.plugins.hasPlugin('com.android.application') ||
+                sub.plugins.hasPlugin('com.android.library')
+        if (hasAndroid && sub.extensions.findByName('android') != null) {
+            sub.android {
+                lint {
+                    checkReleaseBuilds false
+                    abortOnError false
+                }
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

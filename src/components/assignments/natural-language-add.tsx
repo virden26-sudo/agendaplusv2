@@ -6,6 +6,7 @@ import {Input} from "@/components/ui/input";
 import {Card, CardContent} from "@/components/ui/card";
 import {BrainCircuit, Loader2, Sparkles} from "lucide-react";
 import {useToast} from "@/hooks/use-toast";
+import { parseAssignmentText } from "@/lib/local-api";
 
 interface NaturalLanguageAddProps {
     onAdd: (result: any) => void;
@@ -27,19 +28,7 @@ export function NaturalLanguageAdd({
 
         setIsProcessing(true);
         try {
-            const response = await fetch('/api/parse-assignment', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    assignmentText: text,
-                    currentDate: new Date().toLocaleDateString()
-                }),
-            });
-
-            if (!response.ok) throw new Error("Failed to parse input");
-
-            const result = await response.json();
-            
+            const result = parseAssignmentText(text);
             onAdd(result);
 
             toast({

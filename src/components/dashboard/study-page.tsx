@@ -3,20 +3,21 @@
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import * as React from "react";
 import { useState } from "react";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Bot, GraduationCap, Calculator, Library, ExternalLink, BrainCircuit } from "lucide-react";
 import { IntelligentSchedulerDialog } from "./intelligent-scheduler-dialog";
 import { LiveSessionCard } from "./live-session-card";
+import { useUser } from "@/context/user-context";
+import { readLocalStorage } from "@/lib/storage";
 
 export function StudyPage() {
-  const [portalUrl, setPortalUrl] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("studentPortalUrl") || "https://navigate.nu.edu/d2l/home";
-    }
-    return "https://navigate.nu.edu/d2l/home";
-  });
+  const { portalUrl: savedPortalUrl, setPortalUrl: savePortalUrl } = useUser();
+  const [portalUrl, setPortalUrl] = useState(
+    () => savedPortalUrl || readLocalStorage("studentPortalUrl") || "https://navigate.nu.edu/d2l/home"
+  );
   const [schedulerOpen, setSchedulerOpen] = useState(false);
 
   const handlePortalUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,7 +25,7 @@ export function StudyPage() {
   }
 
   const handleSavePortalUrl = () => {
-    localStorage.setItem("studentPortalUrl", portalUrl);
+    savePortalUrl(portalUrl);
     window.open(portalUrl, "_blank");
   }
 

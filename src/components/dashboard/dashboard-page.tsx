@@ -5,7 +5,6 @@ import { WelcomeHeader } from "./welcome-header";
 import { UpcomingAssignments } from "./upcoming-assignments";
 import { GradeOverview } from "./grade-overview";
 import { CalendarView } from "./calendar-view";
-import { useRouter } from "next/navigation";
 import { LiveSessionCard } from "./live-session-card";
 import { usePortal } from "@/context/portal-context";
 import { useUser } from "@/context/user-context";
@@ -18,7 +17,6 @@ export function DashboardPage() {
   const { assignments, loading: assignmentsLoading } = useAssignments();
   const { courses, loading: gradesLoading } = useGrades();
   const { announcements, loading: portalLoading } = usePortal();
-  const router = useRouter();
 
   console.log("DashboardPage State:", {
     user: !!user,
@@ -65,7 +63,7 @@ export function DashboardPage() {
                 </div>
             </div>
           )}
-          <div className="cursor-pointer" onClick={() => router.push('/calendar')}>
+          <div className="cursor-pointer" onClick={() => { window.location.href = '/calendar'; }}>
             <CalendarView />
           </div>
         </div>

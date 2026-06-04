@@ -3,18 +3,15 @@
 
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import * as React from "react";
 import { useState } from "react";
+import { readLocalStorage } from "@/lib/storage";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Video } from "lucide-react";
 
 export function LiveSessionCard() {
-    const [zoomLink, setZoomLink] = useState(() => {
-        if (typeof window !== "undefined") {
-            return localStorage.getItem("zoomLink") || "";
-        }
-        return "";
-    });
+    const [zoomLink, setZoomLink] = useState(() => readLocalStorage("zoomLink") || "");
     
     const handleZoomLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setZoomLink(e.target.value);

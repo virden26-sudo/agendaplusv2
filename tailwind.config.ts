@@ -1,4 +1,5 @@
 import type {Config} from 'tailwindcss';
+import animate from 'tailwindcss-animate';
 
 export default {
   darkMode: ['class'],
@@ -10,9 +11,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['Roboto', 'sans-serif'],
-        headline: ['Dancing Script', 'cursive'],
-        header: ['Dancing Script', 'cursive'],
+        body: ['var(--font-roboto)', 'sans-serif'],
+        headline: ['var(--font-dancing-script)', 'cursive'],
+        header: ['var(--font-dancing-script)', 'cursive'],
         code: ['monospace'],
       },
       colors: {
@@ -96,5 +97,5 @@ export default {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [animate],
 } satisfies Config;

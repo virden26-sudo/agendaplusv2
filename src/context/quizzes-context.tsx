@@ -31,37 +31,40 @@ export const useQuizzes = () => {
     return context;
 };
 
-function loadQuizzesFromStorage(): Quiz[] {
-    if (typeof window === "undefined") return [];
+// Create the provider component
+function loadStoredQuizzes(): Quiz[] {
     try {
         const storedQuizzes = localStorage.getItem("agendaQuizzes");
         if (!storedQuizzes) return [];
-        return JSON.parse(storedQuizzes).map((q: Quiz & { dueDate: string | Date }) => ({
+        const parsed = JSON.parse(storedQuizzes);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.map((q: Quiz & { dueDate: string }) => ({
             ...q,
             dueDate: new Date(q.dueDate),
         }));
     } catch (error) {
-        console.error("Failed to load quizzes", error);
-        localStorage.removeItem("agendaQuizzes");
+        console.error("Failed to load quizzes from localStorage", error);
         return [];
     }
 }
 
-// Create the provider component
 export const QuizzesProvider = ({children}: { children: ReactNode }) => {
-    const [quizzes, setQuizzes] = useState<Quiz[]>(loadQuizzesFromStorage);
-    const [loading, setLoading] = useState(false);
+    const [quizzes, setQuizzes] = useState<Quiz[]>(() =>
+        typeof window === "undefined" ? [] : loadStoredQuizzes()
+    );
+    const [isInitialized] = useState(() => typeof window !== "undefined");
+    const [loading, _setLoading] = useState(false);
 
     // Save quizzes to localStorage whenever they change
     useEffect(() => {
-        if (!loading) {
+        if (isInitialized) {
             try {
                 localStorage.setItem('agendaQuizzes', JSON.stringify(quizzes));
             } catch (error) {
                 console.error("Failed to save quizzes to local storage", error);
             }
         }
-    }, [quizzes, loading]);
+    }, [quizzes, isInitialized]);
 
     const addQuiz = useCallback((quiz: Omit<Quiz, 'id'>) => {
         const newQuiz: Quiz = {

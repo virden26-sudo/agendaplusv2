@@ -28,6 +28,7 @@ obj/
 
 # Browser Profile (Scraper Cache)
 .portal-browser-profile/
+.portal-browser-profile-recovery/
 
 # Local config
 local.properties

@@ -7,7 +7,7 @@ import {Textarea} from "@/components/ui/textarea";
 import {useToast} from "@/hooks/use-toast";
 import {ExternalLink, Loader2, Sparkles} from "lucide-react";
 import {useGrades} from "@/context/grades-context";
-import {getApiUrl} from "@/lib/api-config";
+import {parseGradesText} from "@/lib/local-api";
 import type {Course} from "@/ai/schemas/course";
 
 type ImportGradesDialogProps = {
@@ -49,24 +49,14 @@ export function ImportGradesDialog({open, onOpenChange}: ImportGradesDialogProps
         }
         setIsParsing(true);
         try {
-            const response = await fetch(getApiUrl('/api/parse-grades'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({gradesText: pastedText}),
-            });
-
-            if (!response.ok) throw new Error("Failed to parse grades");
-
-            const result = await response.json();
+            const result = parseGradesText(pastedText);
             handleGradesParsed(result.courses);
         } catch (error) {
             console.error(error);
             toast({
                 variant: "destructive",
-                title: "Error",
-                description: "Could not parse grades. Please try again.",
+                title: "Could not parse grades",
+                description: "Paste lines like \"Course Name 92%\" from your portal.",
             });
         } finally {
             setIsParsing(false);

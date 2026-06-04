@@ -2,25 +2,19 @@
 import React, { useState, useSyncExternalStore } from 'react';
 import { 
   Calendar, 
-  CheckCircle2, 
-  Clock, 
   LayoutDashboard, 
   ListTodo, 
   Settings, 
-  Plus,
-  Search, 
   Bell, 
   BookOpen,
   TrendingUp,
   MoreVertical,
   ChevronRight,
   FileText,
-  Inbox,
   Share2,
   CalendarCheck,
   GraduationCap,
   BookOpenCheck,
-  FileQuestion,
   SquareCheckBig,
   Sun,
   ArrowRight,
@@ -46,7 +40,7 @@ const NavItem = ({ icon, label, active, onClick }) => (
   </button>
 );
 
-const DashboardCard = ({ title, subtitle, icon, children, linkText, href }) => (
+const DashboardCard = ({ title, subtitle, icon, children, linkText }) => (
   <div className="bg-white rounded-[2.5rem] border border-slate-100 p-6 flex flex-col shadow-sm hover:shadow-md transition-shadow duration-300">
     <div className="flex items-start justify-between mb-6">
       <div className="flex items-center gap-4">
@@ -87,7 +81,7 @@ const EmptyState = ({ icon, title, message }) => (
 const WelcomeScreen = ({ onGetStarted, handleSyncData }) => (
   <div className="min-h-svh bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-700">
     <div className="max-w-md w-full">
-      <div className="mb-8 inline-flex p-4 bg-teal-50 rounded-3xl animate-bounce duration-[3000ms]">
+      <div className="mb-8 inline-flex p-4 bg-teal-50 rounded-3xl animate-bounce [animation-duration:3000ms]">
         <BookOpen className="text-teal-600 w-12 h-12" />
       </div>
       <h1 className="text-5xl font-black text-slate-900 mb-4 tracking-tight" style={{ fontFamily: 'Comfortaa, cursive' }}>
@@ -192,7 +186,6 @@ export default function Dashboard() {
                   subtitle="Everything due today"
                   icon={<CalendarCheck className="h-6 w-6" />}
                   linkText="View Calendar"
-                  href="/calendar"
                 >
                   <EmptyState 
                     icon={<Sun size={32} />} 
@@ -209,7 +202,6 @@ export default function Dashboard() {
                   subtitle="Your current course grades"
                   icon={<GraduationCap className="h-6 w-6" />}
                   linkText="View Details"
-                  href="/grades"
                 >
                   <EmptyState 
                     icon={<GraduationCap size={32} />} 
@@ -226,7 +218,6 @@ export default function Dashboard() {
                   subtitle="Stay on top of your deadlines"
                   icon={<BookOpenCheck className="h-6 w-6" />}
                   linkText="View All"
-                  href="/assignments"
                 >
                   {assignments.length === 0 ? (
                     <EmptyState 
@@ -254,7 +245,6 @@ export default function Dashboard() {
                   subtitle="To-do items"
                   icon={<SquareCheckBig className="h-6 w-6" />}
                   linkText="Manage"
-                  href="/tasks"
                 >
                   <EmptyState 
                     icon={<SquareCheckBig size={32} />} 

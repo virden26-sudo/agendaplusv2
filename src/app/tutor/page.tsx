@@ -13,7 +13,6 @@ import {useGrades} from '@/context/grades-context';
 import {Skeleton} from '@/components/ui/skeleton';
 import {Avatar, AvatarFallback} from '@/components/ui/avatar';
 import Markdown from 'react-markdown';
-import {useUser} from '@/context/user-context';
 import {askTutor} from '@/lib/ai-client';
 
 
@@ -26,8 +25,6 @@ export default function TutorPage() {
     const {assignments, loading: assignmentsLoading} = useAssignments();
     const {quizzes, loading: quizzesLoading} = useQuizzes();
     const {courses, loading: gradesLoading} = useGrades();
-    const {backendUrl} = useUser();
-
     const contextLoading = assignmentsLoading || quizzesLoading || gradesLoading;
 
     const handleSubmit = async () => {
@@ -50,7 +47,7 @@ export default function TutorPage() {
                     courses,
                     currentDate: new Date().toLocaleDateString(),
                 },
-            }, backendUrl);
+            });
             setResponse(tutorResponse);
         } catch (error) {
             console.error('AI Tutor failed:', error);

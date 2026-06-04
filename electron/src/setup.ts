@@ -120,6 +120,7 @@ export class ElectronCapacitorApp {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: false,
         // Use preload to inject the electron varriant overrides for capacitor plugins.
         // preload: join(app.getAppPath(), "node_modules", "@capacitor-community", "electron", "dist", "runtime", "electron-rt.js"),
         preload: preloadPath,
@@ -225,17 +226,40 @@ export class ElectronCapacitorApp {
   }
 }
 
+/** Map __next.foo.__PAGE__.txt requests to __next.foo/__PAGE__.txt (Next static export layout). */
+export function setupRscPathRewrite(customScheme: string): void {
+  const filter = { urls: [`${customScheme}://*/*`] };
+
+  session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+    const rewritten = details.url.replace(/(__next\.[^./?#]+)\.__PAGE__\.txt/g, '$1/__PAGE__.txt');
+
+    if (rewritten !== details.url) {
+      callback({ redirectURL: rewritten });
+      return;
+    }
+
+    callback({});
+  });
+}
+
 // Set a CSP up for our application based on the custom scheme
 export function setupContentSecurityPolicy(customScheme: string): void {
+  setupRscPathRewrite(customScheme);
+
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const devSources = electronIsDev ? " devtools://* 'unsafe-eval'" : '';
+    const csp = [
+      `default-src ${customScheme}://* 'unsafe-inline'${devSources} data: https://fonts.googleapis.com https://fonts.gstatic.com`,
+      `connect-src ${customScheme}://* http://127.0.0.1:9002 http://localhost:9002 ws://127.0.0.1:9002 ws://localhost:9002`,
+      `img-src ${customScheme}://* data: https://picsum.photos https://fastly.picsum.photos`,
+      `style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com`,
+      `font-src ${customScheme}://* data: https://fonts.gstatic.com`,
+    ].join('; ');
+
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          electronIsDev
-            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data: https://fonts.googleapis.com https://fonts.gstatic.com; style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com; font-src ${customScheme}://* data: https://fonts.gstatic.com;`
-            : `default-src ${customScheme}://* 'unsafe-inline' data: https://fonts.googleapis.com https://fonts.gstatic.com; style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com; font-src ${customScheme}://* data: https://fonts.gstatic.com;`,
-        ],
+        'Content-Security-Policy': [csp],
       },
     });
   });

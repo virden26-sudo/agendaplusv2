@@ -3,6 +3,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import { AssignmentSchema } from '@/ai/schemas/assignment';
 import { scrapePortal } from '@/lib/scraper';
+import { countPortalItems, mergePortalParseResults, parsePortalTextHeuristically } from '@/lib/portal-text-parser';
 
 const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) {
@@ -40,13 +41,33 @@ const DiscussionSchema = z.object({
     author: z.string().optional().nullable()
 });
 
-const TolerantAssignmentSchema = AssignmentSchema.omit({priority: true}).extend({
+const TolerantAssignmentSchema = z.object({
+    task: z.string().optional(),
+    title: z.string().optional(),
+    evaluationStatus: z.string().optional(),
+    dueDate: z.string().optional().nullable(),
+    course: z.string().optional().nullable(),
+    details: z.string().optional().nullable(),
     priority: z.enum(["low", "medium", "high"]).or(z.literal("")).nullable().optional()
-});
+}).passthrough();
 
-const TolerantDiscussionSchema = DiscussionSchema.extend({
-    postedDate: z.string().optional().nullable()
-});
+const TolerantDiscussionSchema = z.object({
+    title: z.string().optional(),
+    task: z.string().optional(),
+    content: z.string().optional().nullable(),
+    dueDate: z.string().optional().nullable(),
+    postedDate: z.string().optional().nullable(),
+    course: z.string().optional().nullable(),
+    author: z.string().optional().nullable()
+}).passthrough();
+
+const TolerantAnnouncementSchema = z.object({
+    title: z.string().optional(),
+    content: z.string().optional().nullable(),
+    date: z.string().optional().nullable(),
+    course: z.string().optional().nullable(),
+    important: z.boolean().optional().nullable()
+}).passthrough();
 
 const PortalParserInputSchema = z.object({
   portalText: z.string().optional(),
@@ -71,7 +92,7 @@ const PortalParserOutputSchema = z.object({
 
 const TolerantPortalPayloadSchema = z.object({
     assignments: z.array(TolerantAssignmentSchema).optional().default([]),
-    announcements: z.array(AnnouncementSchema).optional().default([]),
+    announcements: z.array(TolerantAnnouncementSchema).optional().default([]),
     discussions: z.array(TolerantDiscussionSchema).optional().default([]),
     quizzes: z.array(TolerantAssignmentSchema).optional().default([]),
     grades: z.array(z.object({
@@ -102,21 +123,21 @@ const normalizePortalOutput = (rawOutput: unknown, currentDate: string): z.infer
 
     return PortalParserOutputSchema.parse({
         assignments: parsed.assignments.map((assignment) => ({
-            task: assignment.task,
+            task: assignment.task || assignment.title || "Untitled Assignment",
             dueDate: assignment.dueDate || null,
             course: assignment.course || null,
             details: assignment.details || null,
-            priority: assignment.priority || undefined
+            priority: (assignment.priority as "low" | "medium" | "high" | "" | null | undefined) || undefined
         })),
         announcements: parsed.announcements.map((announcement) => ({
-            ...announcement,
+            title: announcement.title || "Untitled Announcement",
             content: announcement.content || "",
             date: announcement.date || null,
             course: announcement.course || null,
             important: Boolean(announcement.important)
         })),
         discussions: parsed.discussions.map((discussion) => ({
-            ...discussion,
+            title: discussion.title || discussion.task || "Untitled Discussion",
             content: discussion.content || "",
             dueDate: discussion.dueDate || null,
             postedDate: discussion.postedDate || currentDate,
@@ -124,11 +145,11 @@ const normalizePortalOutput = (rawOutput: unknown, currentDate: string): z.infer
             author: discussion.author || null
         })),
         quizzes: (parsed.quizzes || []).map((quiz) => ({
-            task: quiz.task,
+            task: quiz.task || quiz.evaluationStatus || quiz.title || "Untitled Quiz",
             dueDate: quiz.dueDate || null,
             course: quiz.course || null,
             details: quiz.details || null,
-            priority: quiz.priority || undefined
+            priority: (quiz.priority as "low" | "medium" | "high" | "" | null | undefined) || undefined
         })),
         grades: (parsed.grades || []).map((g) => ({
             course: g.course || "Current Course",
@@ -158,7 +179,13 @@ const parsePortalFlow = ai.defineFlow(
             textToParse = await scrapePortal(input.url, input.username, input.password);
         } catch (scrapeError: unknown) {
             console.warn(`GenesisAi: Scraping failed for ${input.url}:`, scrapeError);
-            throw new Error(`Portal scraping failed: ${getErrorMessage(scrapeError)}`);
+            const message = getErrorMessage(scrapeError);
+            if (/detached|lifecyclewatcher/i.test(message)) {
+                throw new Error(
+                    `Portal scraping interrupted while the page was still loading. Leave the login browser open on your D2L course, wait for assignments to appear, then Rescan. (${message})`
+                );
+            }
+            throw new Error(`Portal scraping failed: ${message}`);
         }
     }
 
@@ -172,10 +199,37 @@ const parsePortalFlow = ai.defineFlow(
         };
     }
 
-    console.log("GenesisAi: Parsing portal data via Ollama...");
-    
     const currentDate = input.currentDate || new Date().toLocaleDateString('en-CA');
     const cleanedText = textToParse.replace(/[^\S\r\n]+/g, ' ').trim();
+    console.log(`GenesisAi: Scraped portal text length: ${cleanedText.length} characters`);
+
+    if (cleanedText.length < 200) {
+      throw new Error(
+        "The portal page did not return enough text to parse. Complete login in the browser window, open your course home, then sync again."
+      );
+    }
+
+    const deterministicResult = parsePortalTextHeuristically(cleanedText, currentDate);
+    const deterministicCount = countPortalItems(deterministicResult);
+
+    console.log("GenesisAi: Deterministic portal parser found", {
+      assignments: deterministicResult.assignments.length,
+      quizzes: deterministicResult.quizzes.length,
+      discussions: deterministicResult.discussions.length,
+      announcements: deterministicResult.announcements.length,
+      total: deterministicCount,
+    });
+
+    // Reliable path: scraped D2L section text parses without waiting on Ollama.
+    if (deterministicCount > 0) {
+      console.log("GenesisAi: Using deterministic extraction (Ollama skipped).");
+      return {
+        ...deterministicResult,
+        grades: [],
+      };
+    }
+
+    console.log("GenesisAi: No heuristic matches; parsing portal data via Ollama...");
 
     try {
       const { output } = await ai.generate({
@@ -216,9 +270,34 @@ const parsePortalFlow = ai.defineFlow(
         output: { schema: TolerantGenkitOutputSchema }
       });
 
-      return normalizePortalOutput(output, currentDate);
+      const aiResult = normalizePortalOutput(output, currentDate);
+      const merged = mergePortalParseResults(aiResult, {
+        ...deterministicResult,
+        grades: [],
+      });
+
+      if (countPortalItems(merged) === 0) {
+        throw new Error(
+          "GenesisAi extracted portal text but could not find assignments, quizzes, or discussions. Open Assignments in your portal, then sync again."
+        );
+      }
+
+      return merged;
     } catch (error: unknown) {
       console.error("GenesisAi portal parsing failed:", error);
+      if (
+        deterministicResult.assignments.length > 0 ||
+        deterministicResult.quizzes.length > 0 ||
+        deterministicResult.discussions.length > 0 ||
+        deterministicResult.announcements.length > 0
+      ) {
+        console.warn("GenesisAi: Ollama failed, using deterministic portal parser result.");
+        return {
+          ...deterministicResult,
+          grades: [],
+        };
+      }
+
       throw new Error(`GenesisAi could not parse the extracted portal text: ${getErrorMessage(error)}`);
     }
   }

@@ -1,4 +1,4 @@
-import { parsePortalTextHeuristically } from "./portal-text-parser";
+import { parsePortalTextHeuristically as _parsePortalTextHeuristically } from "./portal-text-parser";
 import type { Assignment as ParsedAssignment } from "@/ai/schemas/assignment";
 
 /**
@@ -61,6 +61,80 @@ export function parseAssignmentHeuristically(
         priority: lower.includes("urgent") || lower.includes("important") ? "high" : "medium"
     };
 }
+
+/**
+ * Fallback parser for grades when Ollama is unavailable.
+ * Searches for course names and percentages.
+ */
+export function buildStudyScheduleHeuristic(
+    assignments: Array<{ title: string; dueDate: Date }>
+) {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const sorted = [...assignments]
+        .filter((a) => a.title.trim())
+        .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+
+    const suggestedSchedule = sorted.slice(0, 8).map((assignment, index) => ({
+        day: days[index % days.length],
+        startTime: "17:00",
+        endTime: "18:30",
+        assignment: assignment.title,
+    }));
+
+    return {
+        suggestedSchedule,
+        reasoning:
+            sorted.length === 0
+                ? "Add assignments first, then generate a plan."
+                : "Study blocks were scheduled on this device based on your upcoming due dates.",
+    };
+}
+
+export function tutorReplyHeuristic(input: {
+    question: string;
+    context?: {
+        assignments?: Array<{ title?: string; course?: string; dueDate?: Date | string }>;
+        currentDate?: string;
+    };
+}): { response: string } {
+    const upcoming = input.context?.assignments?.length ?? 0;
+    const question = input.question.trim();
+
+    let response =
+        "I'm running entirely on your device — no computer or server setup needed.\n\n";
+
+    if (upcoming > 0) {
+        response += `You have **${upcoming}** upcoming assignment(s) in Agenda+. `;
+    }
+
+    response +=
+        `For your question: *${question.slice(0, 200)}*\n\n` +
+        "Open your **Assignments** and **Calendar** tabs for due dates. " +
+        "For course-specific help, check the material in your school portal or ask your instructor.";
+
+    return { response };
+}
+
+export function parseGradesHeuristically(text: string) {
+    const courses: any[] = [];
+    const lines = text.split(/\r?\n/);
+
+    for (const line of lines) {
+        // Look for something like "Course Name 95%" or "Course: 88.5"
+        const match = line.match(/(.+?)\s*[:|-]?\s*(\d{1,3}(?:\.\d+)?)\s*%/);
+        if (match) {
+            courses.push({
+                id: Math.random().toString(36).substr(2, 9),
+                name: match[1].trim(),
+                grade: parseFloat(match[2]),
+                lastUpdated: new Date().toISOString()
+            });
+        }
+    }
+
+    return { courses };
+}
+
 
 /**
  * Unified client-side executor that tries the AI backend first,

@@ -45,6 +45,7 @@ const ChartContainer = React.forwardRef<
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
+  const mounted = typeof window !== "undefined"
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -58,9 +59,13 @@ const ChartContainer = React.forwardRef<
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
-          {children}
-        </RechartsPrimitive.ResponsiveContainer>
+        {mounted ? (
+          <RechartsPrimitive.ResponsiveContainer>
+            {children}
+          </RechartsPrimitive.ResponsiveContainer>
+        ) : (
+          <div className="h-full min-h-[8rem] w-full animate-pulse rounded-md bg-muted/40" />
+        )}
       </div>
     </ChartContext.Provider>
   )

@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
+  allowedDevOrigins: ['172.17.101.50', '192.168.56.1'],
   // If you are using a custom domain/CDN, it MUST have http:// or https://
   // If you are just running locally, it's safest to leave this as undefined or '/'
   // assetPrefix: process.env.NODE_ENV === 'production' ? 'https://your-cdn.com' : undefined,
@@ -9,6 +10,10 @@ const nextConfig = {
   images: {
     unoptimized: true, // Often helps with memory issues during dev
   },
+  serverExternalPackages: [
+    '@opentelemetry/instrumentation',
+    '@opentelemetry/sdk-node',
+  ],
 };
 
 export default nextConfig;

@@ -1,4 +1,4 @@
-require('./rt/electron-rt');
+require('./rt/electron-rt.js');
 //////////////////////////////
 // User Defined Preload scripts below
 console.log('User Preload!');
@@ -7,4 +7,5 @@ console.log('User Preload!');
 import { ipcRenderer } from 'electron';
 (window as any).electronAPI = {
   sendLogout: () => ipcRenderer.send('user-logout'),
+  getBackendStatus: () => ipcRenderer.invoke('agenda:get-backend-status'),
 };

@@ -16,7 +16,7 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "../ui/c
 import {ScrollArea} from "../ui/scroll-area";
 import {Separator} from "../ui/separator";
 import {useAssignments} from "@/context/assignments-context";
-import {getApiUrl} from "@/lib/api-config";
+import {suggestStudySchedule} from "@/lib/local-api";
 import * as ics from 'ics';
 import {addDays, parse, startOfWeek} from "date-fns";
 
@@ -74,19 +74,13 @@ export function IntelligentSchedulerDialog({open, onOpenChange}: IntelligentSche
         setIsLoading(true);
         setSuggestion(null);
         try {
-            const response = await fetch(getApiUrl('/api/suggest-study-schedule'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    assignments: JSON.stringify(assignments.filter(a => !a.completed)),
-                }),
-            });
-
-            if (!response.ok) throw new Error("Failed to generate schedule");
-
-            const result = await response.json();
+            const result = suggestStudySchedule(
+                JSON.stringify(
+                    assignments
+                        .filter((a) => !a.completed)
+                        .map((a) => ({ title: a.title, dueDate: a.dueDate }))
+                )
+            );
             const parsedSchedule = JSON.parse(result.suggestedSchedule);
             const newSuggestion = {suggestedSchedule: parsedSchedule, reasoning: result.reasoning};
             setSuggestion(newSuggestion);

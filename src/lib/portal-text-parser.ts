@@ -49,8 +49,13 @@ function isNoiseLine(line: string): boolean {
     "sign in", "log in", "logout", "password", "username", "okta",
     "copyright", "privacy", "help", "settings", "menu", "search",
     "frame break", "loading", "skip to", "cookie",
+    "are you still there", "oh, there you are", "session expires",
   ];
   return noise.some((token) => lower.includes(token));
+}
+
+function isD2LTableNoise(line: string): boolean {
+  return /^(name|due date|status|score|grade|points|completed|not submitted|feedback|availability|actions|topic|threads|posts|last post|started|not started|attempts|evaluation status|publish|published|hidden|visible)$/i.test(line);
 }
 
 function inferCourse(lines: string[], index: number): string | undefined {
@@ -68,9 +73,16 @@ function inferCourse(lines: string[], index: number): string | undefined {
 export function parsePortalTextHeuristically(
   portalText: string,
   currentDate = new Date().toLocaleDateString("en-CA")
-): { assignments: ParsedAssignment[]; announcements: { title: string; content?: string; date?: string; course?: string }[] } {
+): {
+  assignments: ParsedAssignment[];
+  announcements: { title: string; content?: string; date?: string; course?: string }[];
+  discussions: { title: string; content?: string; dueDate?: string | null; postedDate: string; course?: string }[];
+  quizzes: ParsedAssignment[];
+} {
   const anchorYear = Number(currentDate.slice(0, 4)) || new Date().getFullYear();
   const assignments: ParsedAssignment[] = [];
+  const quizzes: ParsedAssignment[] = [];
+  const discussions: { title: string; content?: string; dueDate?: string | null; postedDate: string; course?: string }[] = [];
   const seen = new Set<string>();
 
   const lines = portalText
@@ -80,6 +92,15 @@ export function parsePortalTextHeuristically(
 
   const dueInline = /(.{8,140}?)\s+(?:due|due date|deadline)\s*[:\-]?\s*([A-Za-z]+\s+\d{1,2}(?:,?\s*\d{4})?|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d{4}-\d{2}-\d{2})/gi;
 
+  const addAssignment = (target: ParsedAssignment[], task: string, dueDate: string | null, course = "Portal") => {
+    const cleanedTask = cleanTitle(task);
+    if (!cleanedTask || isNoiseLine(cleanedTask)) return;
+    const key = `${cleanedTask.toLowerCase()}|${dueDate ?? ""}|${course.toLowerCase()}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    target.push({ task: cleanedTask, dueDate, course });
+  };
+
   for (const line of lines) {
     let match: RegExpExecArray | null;
     dueInline.lastIndex = 0;
@@ -87,10 +108,7 @@ export function parsePortalTextHeuristically(
       const task = cleanTitle(match[1]);
       const dueDate = normalizeDate(match[2], anchorYear);
       if (!task || !dueDate) continue;
-      const key = `${task.toLowerCase()}|${dueDate}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      assignments.push({ task, dueDate, course: inferCourse(lines, lines.indexOf(line)) ?? "Portal" });
+      addAssignment(assignments, task, dueDate, inferCourse(lines, lines.indexOf(line)) ?? "Portal");
     }
   }
 
@@ -114,14 +132,67 @@ export function parsePortalTextHeuristically(
     }
 
     if (!task) continue;
-    const key = `${task.toLowerCase()}|${dueDate}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    assignments.push({
-      task,
-      dueDate,
-      course: inferCourse(lines, i) ?? "Portal",
-    });
+    addAssignment(assignments, task, dueDate, inferCourse(lines, i) ?? "Portal");
+  }
+
+  let section = "";
+  let currentCourse = lines.find((line) => /[A-Z]{2,5}\s*\d{2,4}|Cultural Diversity|SOC350/i.test(line)) || "Portal";
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const sectionMatch = line.match(/^=+\s*SECTION:\s*(.+?)\s*=+$/i);
+    if (sectionMatch) {
+      section = sectionMatch[1].toLowerCase();
+      continue;
+    }
+
+    if (/SOC\s*350|Cultural Diversity/i.test(line)) {
+      currentCourse = line.slice(0, 90);
+    }
+
+    if (isNoiseLine(line)) continue;
+    if (/^(assignments?|quizzes?|discussions?|grades?|course home|calendar|content|table of contents)$/i.test(line)) continue;
+    if (isD2LTableNoise(line)) continue;
+
+    const explicitDate = normalizeDate(line, anchorYear);
+    const nextLineDate = lines[i + 1] ? normalizeDate(lines[i + 1], anchorYear) : null;
+    const dueDate = explicitDate || nextLineDate;
+    const taskish =
+      /assignment|paper|essay|quiz|exam|discussion|post|journal|project|worksheet|read|review|complete|participate|module|chapter/i.test(line);
+
+    const inAssignmentSection = section.includes("assignment") || section.includes("dropbox");
+    const inDiscussionSection = section.includes("discussion");
+    const inQuizSection = section.includes("quiz");
+    const usefulSectionLine = Boolean(section) && !isD2LTableNoise(line) && !normalizeDate(line, anchorYear);
+
+    if (inQuizSection && (taskish || usefulSectionLine)) {
+      addAssignment(quizzes, line, dueDate, currentCourse);
+      continue;
+    }
+
+    if (inDiscussionSection && (taskish || usefulSectionLine)) {
+      const title = cleanTitle(line);
+      const key = `discussion|${title.toLowerCase()}|${dueDate ?? ""}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        discussions.push({
+          title,
+          dueDate,
+          postedDate: currentDate,
+          course: currentCourse,
+        });
+      }
+      continue;
+    }
+
+    if (inAssignmentSection && (taskish || usefulSectionLine)) {
+      addAssignment(assignments, line, dueDate, currentCourse);
+      continue;
+    }
+
+    // D2L tables: title line followed by a date-only line (no "due" prefix).
+    if (inAssignmentSection && nextLineDate && !explicitDate && line.length >= 8 && line.length <= 120) {
+      addAssignment(assignments, line, nextLineDate, currentCourse);
+    }
   }
 
   const announcements: { title: string; content?: string; date?: string; course?: string }[] = [];
@@ -137,10 +208,26 @@ export function parsePortalTextHeuristically(
     });
   }
 
-  return { assignments, announcements };
+  return { assignments, announcements, discussions, quizzes };
 }
 
-export function mergePortalParseResults<T extends { assignments?: ParsedAssignment[]; announcements?: unknown[]; discussions?: unknown[] }>(
+export function countPortalItems(result: {
+  assignments?: unknown[];
+  announcements?: unknown[];
+  discussions?: unknown[];
+  quizzes?: unknown[];
+  grades?: unknown[];
+}) {
+  return (
+    (result.assignments?.length ?? 0) +
+    (result.quizzes?.length ?? 0) +
+    (result.discussions?.length ?? 0) +
+    (result.announcements?.length ?? 0) +
+    (result.grades?.length ?? 0)
+  );
+}
+
+export function mergePortalParseResults<T extends { assignments?: ParsedAssignment[]; announcements?: unknown[]; discussions?: unknown[]; quizzes?: ParsedAssignment[] }>(
   primary: T,
   fallback: T
 ): T {
@@ -149,6 +236,7 @@ export function mergePortalParseResults<T extends { assignments?: ParsedAssignme
     return items.filter((item) => {
       const task = (item.task || (item as { title?: string }).title || "").trim();
       if (!task) return false;
+      if (/^untitled(\s+assignment|\s+quiz)?$/i.test(task)) return false;
       const key = `${task.toLowerCase()}|${item.dueDate ?? ""}`;
       if (seen.has(key)) return false;
       seen.add(key);
@@ -159,19 +247,28 @@ export function mergePortalParseResults<T extends { assignments?: ParsedAssignme
     }));
   };
 
+  const primaryCount = countPortalItems(primary);
+  const fallbackCount = countPortalItems(fallback);
+  const richer = fallbackCount > primaryCount ? fallback : primary;
+  const poorer = richer === fallback ? primary : fallback;
+
   return {
-    ...primary,
+    ...richer,
     assignments: dedupeAssignments([
-      ...(primary.assignments ?? []),
-      ...(fallback.assignments ?? []),
+      ...(richer.assignments ?? []),
+      ...(poorer.assignments ?? []),
+    ]),
+    quizzes: dedupeAssignments([
+      ...(richer.quizzes ?? []),
+      ...(poorer.quizzes ?? []),
     ]),
     announcements: [
-      ...(primary.announcements ?? []),
-      ...(fallback.announcements ?? []),
+      ...(richer.announcements ?? []),
+      ...(poorer.announcements ?? []),
     ],
     discussions: [
-      ...(primary.discussions ?? []),
-      ...(fallback.discussions ?? []),
+      ...(richer.discussions ?? []),
+      ...(poorer.discussions ?? []),
     ],
   } as T;
 }

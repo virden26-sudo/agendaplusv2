@@ -26,7 +26,7 @@ import {
     Upload
 } from "lucide-react";
 import {useAssignments} from "@/context/assignments-context";
-import {getApiUrl} from "@/lib/api-config";
+import {parseSyllabusText} from "@/lib/local-api";
 import type {ParsedAssignment} from "@/ai/schemas/assignment";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "@/components/ui/table";
 import {Input} from "@/components/ui/input";
@@ -67,42 +67,32 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
         setIsParsing(false);
     }
 
-    const fileToDataUri = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    };
-
     async function handleFileParse(file: File) {
         setIsParsing(true);
         setStep('parsing');
         setFileName(file.name);
         try {
-            const dataUri = await fileToDataUri(file);
-            const response = await fetch(getApiUrl('/api/parse-syllabus'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    syllabusFile: dataUri,
-                    currentDate: new Date().toISOString().split('T')[0]
-                }),
-            });
+            const isTextFile =
+                file.type.startsWith("text/") || file.name.toLowerCase().endsWith(".txt");
+            if (!isTextFile) {
+                toast({
+                    variant: "destructive",
+                    title: "Use a text file or paste",
+                    description: "Copy your syllabus into the Paste tab, or upload a .txt export.",
+                });
+                setStep("input");
+                setIsParsing(false);
+                return;
+            }
 
-            if (!response.ok) throw new Error(`Failed to parse syllabus: ${response.status}`);
-
-            const result = await response.json();
-            handleAssignmentsParsed(result.assignments);
+            const text = await file.text();
+            handleAssignmentsParsed(parseSyllabusText(text));
         } catch (error) {
             console.error(error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not parse syllabus file. Please try again.",
+                description: "Could not read that file. Paste syllabus text instead.",
             });
             setStep('input');
             setIsParsing(false);
@@ -122,21 +112,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
         setStep('parsing');
         setFileName("pasted text");
         try {
-            const response = await fetch(getApiUrl('/api/parse-syllabus-text'), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    syllabusText: pastedText,
-                    currentDate: new Date().toISOString().split('T')[0]
-                }),
-            });
-
-            if (!response.ok) throw new Error(`Failed to parse syllabus text: ${response.status}`);
-
-            const result = await response.json();
-            handleAssignmentsParsed(result.assignments);
+            handleAssignmentsParsed(parseSyllabusText(pastedText));
         } catch (error) {
             console.error(error);
             toast({

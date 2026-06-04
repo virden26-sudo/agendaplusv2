@@ -1,4 +1,4 @@
-export const exportToJSON = (data: any) => {
+export const exportToJSON = (data: unknown) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -10,7 +10,7 @@ export const exportToJSON = (data: any) => {
     URL.revokeObjectURL(url);
 };
 
-export const importFromJSON = (onSuccess: (data: any) => void, onError: (error: string) => void) => {
+export const importFromJSON = (onSuccess: (data: unknown) => void, onError: (error: string) => void) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json';
@@ -36,7 +36,7 @@ export const importFromJSON = (onSuccess: (data: any) => void, onError: (error: 
                         onError('Invalid JSON file format.');
                     }
                 }
-            } catch (err) {
+            } catch (_err) {
                 onError('Failed to parse the JSON file.');
             }
         };
@@ -71,5 +71,3 @@ export const calculateGPA = (courses: { grade: number }[]): number => {
     const totalGPA = courses.reduce((acc, course) => acc + percentageToGPA(course.grade), 0);
     return Math.round((totalGPA / courses.length) * 100) / 100;
 };
-
-    

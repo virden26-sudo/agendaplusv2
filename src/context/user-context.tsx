@@ -1,63 +1,40 @@
 "use client";
 
-import React, {createContext, ReactNode, useContext, useEffect, useState} from 'react';
-import type {User} from '@/lib/types';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import type { User } from '@/lib/types';
+import { readLocalStorage, readLocalStorageJson } from '@/lib/storage';
 
 interface UserContextType {
     user: User | null;
     setUser: (user: User | null) => void;
     portalUrl: string;
     setPortalUrl: (url: string) => void;
-    backendUrl: string;
-    setBackendUrl: (url: string) => void;
     isUserLoaded: boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-
-export function UserProvider({children}: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
-    const [portalUrl, setPortalUrl] = useState("");
-    const [backendUrl, setBackendUrl] = useState("");
-    const [isUserLoaded, setIsUserLoaded] = useState(false);
-
-    useEffect(() => {
-        try {
-            const storedUser = localStorage.getItem("agendaUser");
-            const storedPortalUrl = localStorage.getItem("studentPortalUrl");
-            const storedBackendUrl = localStorage.getItem("backendUrl");
-
-            setUser(storedUser ? (JSON.parse(storedUser) as User) : null);
-            setPortalUrl(storedPortalUrl || "");
-            setBackendUrl(storedBackendUrl || "");
-        } catch (error) {
-            console.error("Failed to parse user from local storage", error);
-            setUser(null);
-            setPortalUrl("");
-            setBackendUrl("");
-        } finally {
-            setIsUserLoaded(true);
-        }
-    }, []);
+export function UserProvider({ children }: { children: ReactNode }) {
+    const [user, setUser] = useState<User | null>(() => readLocalStorageJson<User>("agendaUser"));
+    const [portalUrl, setPortalUrl] = useState(() => readLocalStorage("studentPortalUrl") || "");
+    const [isUserLoaded] = useState(() => typeof window !== "undefined");
 
     const handleSetUser = (newUser: User | null) => {
-        if (newUser) {
-            localStorage.setItem("agendaUser", JSON.stringify(newUser));
-        } else {
-            localStorage.removeItem("agendaUser");
+        if (typeof window !== "undefined") {
+            if (newUser) {
+                localStorage.setItem("agendaUser", JSON.stringify(newUser));
+            } else {
+                localStorage.removeItem("agendaUser");
+            }
         }
         setUser(newUser);
     };
 
     const handleSetPortalUrl = (url: string) => {
-        localStorage.setItem("studentPortalUrl", url);
+        if (typeof window !== "undefined") {
+            localStorage.setItem("studentPortalUrl", url);
+        }
         setPortalUrl(url);
-    };
-
-    const handleSetBackendUrl = (url: string) => {
-        localStorage.setItem("backendUrl", url);
-        setBackendUrl(url);
     };
 
     return (
@@ -66,9 +43,7 @@ export function UserProvider({children}: { children: ReactNode }) {
             setUser: handleSetUser,
             portalUrl,
             setPortalUrl: handleSetPortalUrl,
-            backendUrl,
-            setBackendUrl: handleSetBackendUrl,
-            isUserLoaded
+            isUserLoaded,
         }}>
             {children}
         </UserContext.Provider>

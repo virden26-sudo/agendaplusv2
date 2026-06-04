@@ -19,7 +19,7 @@
     "electron:start-live": "node ./live-runner.js",
     "electron:start": "npm run build && electron --inspect=5858 ./",
     "electron:pack": "npm run build && electron-builder build --dir -c ./electron-builder.config.json",
-    "electron:make": "npm run build && electron-builder build -c ./electron-builder.config.json --publish",
+    "electron:make": "npm run build && electron-builder build -c ./electron-builder.config.json --win --publish never",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
@@ -39,5 +39,8 @@
   "keywords": [
     "capacitor",
     "electron"
-  ]
+  ],
+  "allowScripts": {
+    "electron@26.6.10": true
+  }
 }

@@ -7,9 +7,23 @@ import { PortalProvider } from '@/context/portal-context';
 import { QuizzesProvider } from '@/context/quizzes-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { UserProvider } from '@/context/user-context';
-import { Suspense } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
-import { Loader2 } from 'lucide-react';
+
+import { Roboto, Dancing_Script } from 'next/font/google';
+
+const roboto = Roboto({
+  weight: ['400', '500', '700'],
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-roboto',
+});
+
+const dancingScript = Dancing_Script({
+  weight: ['700'],
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-dancing-script',
+});
 
 export const metadata: Metadata = {
   title: 'Agenda+ | Your Academic Sidekick',
@@ -27,21 +41,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Dancing+Script:wght@700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" suppressHydrationWarning className={`${roboto.variable} ${dancingScript.variable}`}>
       <body>
-        <Suspense fallback={
-          <div className="flex items-center justify-center h-screen bg-background">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          </div>
-        }>
           <UserProvider>
             <TasksProvider>
               <QuizzesProvider>
@@ -57,7 +58,6 @@ export default function RootLayout({
               </QuizzesProvider>
             </TasksProvider>
           </UserProvider>
-        </Suspense>
         <Toaster />
       </body>
     </html>

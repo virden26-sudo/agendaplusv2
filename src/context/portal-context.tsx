@@ -14,67 +14,73 @@ interface PortalContextType {
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
 
+function loadStoredPortalData(): { announcements: Announcement[]; discussions: Discussion[] } {
+  try {
+    let announcements: Announcement[] = [];
+    let discussions: Discussion[] = [];
+
+    const storedAnnouncements = localStorage.getItem('agendaAnnouncements');
+    if (storedAnnouncements) {
+      const parsed = JSON.parse(storedAnnouncements);
+      if (Array.isArray(parsed)) {
+        announcements = parsed.map((a: Announcement & { date: string }) => ({
+          ...a,
+          date: new Date(a.date),
+        }));
+      }
+    }
+
+    const storedDiscussions = localStorage.getItem('agendaDiscussions');
+    if (storedDiscussions) {
+      const parsed = JSON.parse(storedDiscussions);
+      if (Array.isArray(parsed)) {
+        discussions = parsed.map((d: Discussion & { postedDate: string; dueDate?: string }) => ({
+          ...d,
+          postedDate: new Date(d.postedDate),
+          dueDate: d.dueDate ? new Date(d.dueDate) : undefined,
+        }));
+      }
+    }
+
+    return { announcements, discussions };
+  } catch (error) {
+    console.error("Failed to parse portal data from localStorage", error);
+    return { announcements: [], discussions: [] };
+  }
+}
+
 export function PortalProvider({ children }: { children: ReactNode }) {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedAnnouncements = localStorage.getItem('agendaAnnouncements');
-        if (storedAnnouncements) {
-          const parsed = JSON.parse(storedAnnouncements);
-          if (Array.isArray(parsed)) {
-            return parsed.map((a: any) => ({
-              ...a,
-              date: new Date(a.date),
-            }));
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse portal data from localStorage", error);
-      }
-    }
-    return [];
-  });
-
-  const [discussions, setDiscussions] = useState<Discussion[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const storedDiscussions = localStorage.getItem('agendaDiscussions');
-        if (storedDiscussions) {
-          const parsed = JSON.parse(storedDiscussions);
-          if (Array.isArray(parsed)) {
-            return parsed.map((d: any) => ({
-              ...d,
-              postedDate: new Date(d.postedDate),
-              dueDate: d.dueDate ? new Date(d.dueDate) : undefined,
-            }));
-          }
-        }
-      } catch (error) {
-        console.error("Failed to parse portal data from localStorage", error);
-      }
-    }
-    return [];
-  });
-
-  const [loading, setLoading] = useState(true);
+  const initialPortal = typeof window === "undefined"
+    ? { announcements: [] as Announcement[], discussions: [] as Discussion[] }
+    : loadStoredPortalData();
+  const [announcements, setAnnouncements] = useState<Announcement[]>(initialPortal.announcements);
+  const [discussions, setDiscussions] = useState<Discussion[]>(initialPortal.discussions);
+  const [isInitialized] = useState(() => typeof window !== "undefined");
+  const [loading, _setLoading] = useState(false);
 
   useEffect(() => {
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-        localStorage.setItem('agendaAnnouncements', JSON.stringify(announcements));
-        localStorage.setItem('agendaDiscussions', JSON.stringify(discussions));
+    if (isInitialized) {
+      localStorage.setItem('agendaAnnouncements', JSON.stringify(announcements));
+      localStorage.setItem('agendaDiscussions', JSON.stringify(discussions));
     }
-  }, [announcements, discussions, loading]);
+  }, [announcements, discussions, isInitialized]);
 
   const addAnnouncements = (newAnnouncements: Announcement[]) => {
-    setAnnouncements(prev => [...newAnnouncements, ...prev]);
+    setAnnouncements(prev => {
+        const existingKeys = new Set(prev.map(a => `${a.title.toLowerCase()}|${a.course.toLowerCase()}`));
+        const toAdd = newAnnouncements.filter(a => !existingKeys.has(`${a.title.toLowerCase()}|${a.course.toLowerCase()}`));
+        if (toAdd.length === 0) return prev;
+        return [...toAdd, ...prev];
+    });
   };
 
   const addDiscussions = (newDiscussions: Discussion[]) => {
-    setDiscussions(prev => [...newDiscussions, ...prev]);
+    setDiscussions(prev => {
+        const existingKeys = new Set(prev.map(d => `${d.title.toLowerCase()}|${d.course.toLowerCase()}`));
+        const toAdd = newDiscussions.filter(d => !existingKeys.has(`${d.title.toLowerCase()}|${d.course.toLowerCase()}`));
+        if (toAdd.length === 0) return prev;
+        return [...toAdd, ...prev];
+    });
   };
 
   return (

@@ -1,26 +1,27 @@
 import type {PortalData, TutorInput, TutorOutput} from '@/ai/schemas';
-import {getApiUrl} from '@/lib/api-config';
+import {askTutorOnDevice, extractItemsFromText} from '@/lib/local-api';
 
-async function postJson<TResponse>(endpoint: string, body: unknown, backendUrl?: string): Promise<TResponse> {
-    const response = await fetch(getApiUrl(endpoint, backendUrl), {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
+export function extractItems(text: string): Promise<PortalData> {
+    const parsed = extractItemsFromText(text);
+    const items = [
+        ...parsed.assignments.map((a) => ({
+            title: a.task,
+            dueDate: a.dueDate || new Date().toISOString().slice(0, 10),
+            type: 'Assignment' as const,
+        })),
+        ...parsed.quizzes.map((q) => ({
+            title: q.task,
+            dueDate: q.dueDate || new Date().toISOString().slice(0, 10),
+            type: 'Quiz' as const,
+        })),
+    ];
+
+    return Promise.resolve({
+        courseName: parsed.assignments[0]?.course || parsed.quizzes[0]?.course || 'Portal',
+        items,
     });
-
-    if (!response.ok) {
-        throw new Error(`Request failed for ${endpoint}`);
-    }
-
-    return response.json() as Promise<TResponse>;
 }
 
-export function extractItems(text: string, backendUrl?: string) {
-    return postJson<PortalData>('/api/extract-items', {text}, backendUrl);
-}
-
-export function askTutor(input: TutorInput, backendUrl?: string) {
-    return postJson<TutorOutput>('/api/tutor', input, backendUrl);
+export function askTutor(input: TutorInput) {
+    return Promise.resolve(askTutorOnDevice(input) as TutorOutput);
 }

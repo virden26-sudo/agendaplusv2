@@ -12,13 +12,13 @@ Agenda+ is a Next.js 16 student planner web app (TypeScript, Tailwind CSS, shadc
 npm run dev
 ```
 
-Starts on port **9002** (not the default 3000). Uses Webpack bundler explicitly.
+Starts on port **3000**. Uses Webpack bundler explicitly.
 
 ### Key Commands
 
 | Task | Command |
 |------|---------|
-| Dev server | `npm run dev` (port 9002) |
+| Dev server | `npm run dev` (port 3000) |
 | Lint | `npm run lint` |
 | Typecheck | `npm run typecheck` |
 | Build | `npm run build` |
