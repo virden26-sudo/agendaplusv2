@@ -34,7 +34,9 @@ jobs:
       run: chmod +x android/gradlew
 
     - name: Build Debug
-      run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
+      run: cd android && ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
+      env:
+        GRADLE_OPTS: "-Dorg.gradle.java.installations.auto-detect=false -Dorg.gradle.java.installations.paths=$JAVA_HOME"
 
     - name: Run lint
       run: cd android && ./gradlew lintDebug --no-daemon || true
