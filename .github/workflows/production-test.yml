@@ -23,7 +23,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       
       - name: Build for Production (Static)
-        run: npm run prod:build
+        run: npm run build
       
       - name: Run E2E Tests
         run: npm run test:prod
