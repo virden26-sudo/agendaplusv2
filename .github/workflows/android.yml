@@ -31,10 +31,10 @@ jobs:
           ${{ runner.os }}-gradle-
 
     - name: Grant execute permission for gradlew
-      run: chmod +x gradlew || true
+      run: chmod +x android/gradlew
 
     - name: Build Debug
-      run: ./gradlew assembleDebug --no-daemon
+      run: cd android && ./gradlew assembleDebug --no-daemon
 
     - name: Run lint
-      run: ./gradlew lintDebug --no-daemon || true
+      run: cd android && ./gradlew lintDebug --no-daemon || true
