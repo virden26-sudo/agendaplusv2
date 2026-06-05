@@ -250,7 +250,7 @@ export function setupContentSecurityPolicy(customScheme: string): void {
     const devSources = electronIsDev ? " devtools://* 'unsafe-eval'" : '';
     const csp = [
       `default-src ${customScheme}://* 'unsafe-inline'${devSources} data: https://fonts.googleapis.com https://fonts.gstatic.com`,
-      `connect-src ${customScheme}://* http://127.0.0.1:9002 http://localhost:9002 ws://127.0.0.1:9002 ws://localhost:9002`,
+      `connect-src ${customScheme}://* http://127.0.0.1:3000 http://localhost:3000 http://[::1]:3000 ws://127.0.0.1:3000 ws://localhost:3000 ws://[::1]:3000 http://127.0.0.1:9002 http://localhost:9002 ws://127.0.0.1:9002 ws://localhost:9002 http://127.0.0.1:11434 http://localhost:11434 ws://127.0.0.1:11434 ws://localhost:11434`,
       `img-src ${customScheme}://* data: https://picsum.photos https://fastly.picsum.photos`,
       `style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com`,
       `font-src ${customScheme}://* data: https://fonts.gstatic.com`,
