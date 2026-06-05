@@ -131,6 +131,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     const isRemote = React.useMemo(() => isRemoteBrowserClient(), []);
 
+    const mountedRef = React.useRef(false);
+    const syncingRef = React.useRef(false);
+    const startupSyncEnqueuedRef = React.useRef(false);
+
+    React.useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
+
     React.useEffect(() => {
         if (isSyncing && !isRemote) {
             setTimeout(() => {
@@ -213,15 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         };
     }, [isSyncing]);
 
-    const mountedRef = React.useRef(false);
-    const syncingRef = React.useRef(false);
-    const startupSyncEnqueuedRef = React.useRef(false);
-    React.useEffect(() => {
-        mountedRef.current = true;
-        return () => {
-            mountedRef.current = false;
-        };
-    }, []);
+
 
     const processSyncResult = React.useCallback((result: PortalSyncResult) => {
         console.log("AppShell: processSyncResult counts", {
