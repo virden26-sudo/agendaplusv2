@@ -16,7 +16,7 @@ export function DashboardPage() {
   const { user, isUserLoaded } = useUser();
   const { assignments, loading: assignmentsLoading } = useAssignments();
   const { courses, loading: gradesLoading } = useGrades();
-  const { announcements, loading: portalLoading } = usePortal();
+  const { announcements, loading: portalLoading, isSyncing } = usePortal();
 
   console.log("DashboardPage State:", {
     user: !!user,
@@ -26,10 +26,12 @@ export function DashboardPage() {
     courses: courses.length,
     gradesLoading,
     announcements: announcements.length,
-    portalLoading
+    portalLoading,
+    isSyncing
   });
   
-  const isDataLoading = assignmentsLoading || gradesLoading || portalLoading || !isUserLoaded;
+  const isDataLoading =
+    !isUserLoaded || assignmentsLoading || ((gradesLoading || portalLoading) && assignments.length === 0);
   const latestAnnouncements = announcements.slice(0, 2);
  
   if (isDataLoading) {

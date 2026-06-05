@@ -13,6 +13,8 @@ interface GradesContextType {
 const GradesContext = createContext<GradesContextType | undefined>(undefined);
 
 function loadStoredCourses(): Course[] {
+  if (typeof window === "undefined") return [];
+
   try {
     const storedGrades = localStorage.getItem('agendaGrades');
     if (!storedGrades) return [];
@@ -30,14 +32,11 @@ function loadStoredCourses(): Course[] {
 
 export function GradesProvider({ children }: { children: ReactNode }) {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [loading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      setCourses(loadStoredCourses());
-      setIsInitialized(true);
-    });
+    setCourses(loadStoredCourses());
+    setIsInitialized(true);
   }, []);
 
   useEffect(() => {
@@ -55,7 +54,7 @@ export function GradesProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <GradesContext.Provider value={{ courses, setCourses: handleSetCourses, loading }}>
+    <GradesContext.Provider value={{ courses, setCourses: handleSetCourses, loading: !isInitialized }}>
       {children}
     </GradesContext.Provider>
   );

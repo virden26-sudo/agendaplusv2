@@ -14,9 +14,7 @@ export function LiveSessionCard() {
     const [zoomLink, setZoomLink] = useState("");
 
     React.useEffect(() => {
-        queueMicrotask(() => {
-            setZoomLink(readLocalStorage("zoomLink") || "");
-        });
+        setZoomLink(readLocalStorage("zoomLink") || "");
     }, []);
     
     const handleZoomLinkChange = (e: React.ChangeEvent<HTMLInputElement>) => {

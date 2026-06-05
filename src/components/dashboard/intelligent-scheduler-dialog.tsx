@@ -64,10 +64,8 @@ export function IntelligentSchedulerDialog({open, onOpenChange}: IntelligentSche
             return;
         }
 
-        queueMicrotask(() => {
-            const savedSuggestion = localStorage.getItem("studyPlan");
-            setSuggestion(savedSuggestion ? (JSON.parse(savedSuggestion) as Suggestion) : null);
-        });
+        const savedSuggestion = localStorage.getItem("studyPlan");
+        setSuggestion(savedSuggestion ? (JSON.parse(savedSuggestion) as Suggestion) : null);
     }, [open]);
 
     async function generateSchedule() {

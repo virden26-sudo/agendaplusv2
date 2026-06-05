@@ -10,6 +10,13 @@ const SHARED_BROWSER_PROFILE_DIR = process.env.AGENDA_PORTAL_PROFILE_DIR
 // Mutex to serialize all scraping missions and prevent concurrent browser launches
 let scraperMutex = Promise.resolve();
 
+type StructuredPortalItem = {
+    task: string;
+    dueDate?: string | null;
+    details?: string | null;
+    href?: string | null;
+};
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isNavigationError = (error: unknown) => {
@@ -25,6 +32,91 @@ const isNavigationError = (error: unknown) => {
         message.includes("navigating frame was detached")
     );
 };
+
+export type ScrapePortalOptions = {
+    /** When true, reuse the saved portal profile without opening a visible login window. */
+    sessionReady?: boolean;
+};
+
+async function pageLooksLoggedIn(page: any): Promise<boolean> {
+    try {
+        return await page.evaluate(`(() => {
+            const text = (document.body?.innerText || "").toLowerCase();
+            const href = (location.href || "").toLowerCase();
+            if (href.includes("okta.com") && !href.includes("callback")) return false;
+            const signedIn = ["logout", "log out", "sign out", "my courses", "course home", "d2l/home", "dropbox", "assignments"]
+                .some((token) => text.includes(token));
+            const visiblePassword = Array.from(document.querySelectorAll('input[type="password"]'))
+                .some((input) => {
+                    const el = input;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0 && !el.disabled;
+                });
+            return signedIn && !visiblePassword;
+        })()`);
+    } catch {
+        return false;
+    }
+}
+
+async function getOrCreatePortalPage(browser: any, url: string) {
+    const pages = (await listBrowserPages(browser)).filter((candidate: any) => {
+        try {
+            return candidate && !candidate.isClosed();
+        } catch {
+            return false;
+        }
+    });
+
+    let host = "";
+    try {
+        host = new URL(url).hostname;
+    } catch {
+        host = "";
+    }
+
+    const portalPage = pages.find((candidate: any) => {
+        try {
+            const pageUrl = candidate.url();
+            return pageUrl.includes("d2l") || (host && pageUrl.includes(host));
+        } catch {
+            return false;
+        }
+    });
+
+    if (portalPage) {
+        return portalPage;
+    }
+
+    const reusable = pages.find((candidate: any) => {
+        try {
+            const pageUrl = candidate.url();
+            return pageUrl === "about:blank" || pageUrl === "chrome://newtab/";
+        } catch {
+            return false;
+        }
+    }) || pages[0];
+
+    if (reusable) {
+        return reusable;
+    }
+
+    return browser.newPage();
+}
+
+async function pruneExtraTabs(browser: any, keepPage: any) {
+    const pages = await listBrowserPages(browser);
+    for (const candidate of pages) {
+        if (candidate === keepPage) continue;
+        try {
+            if (!candidate.isClosed()) {
+                await candidate.close();
+            }
+        } catch {
+            // ignore stale tabs
+        }
+    }
+}
 
 const listBrowserPages = async (browser: any) => {
     if (!browser?.pages) {
@@ -84,6 +176,275 @@ async function safeGoto(page: any, url: string, timeout = 45000) {
     }
 }
 
+/** Pull assignment/quiz rows from D2L tables instead of relying on messy innerText. */
+async function enrichStructuredAssignmentDueDates(page: any, structuredBlock: string): Promise<string> {
+    const header = /===\s*STRUCTURED:\s*Assignments\s*===\s*/i;
+    if (!header.test(structuredBlock)) {
+        return structuredBlock;
+    }
+
+    const jsonText = structuredBlock.replace(header, "").trim();
+    let payload: { course?: string; items?: StructuredPortalItem[] };
+    try {
+        payload = JSON.parse(jsonText);
+    } catch {
+        return structuredBlock;
+    }
+
+    const items = payload.items || [];
+    const pending = items.filter((item) => !item.dueDate && item.href);
+    if (pending.length === 0) {
+        return structuredBlock;
+    }
+
+    const { findDueDateInBlob, isReasonableDueDate } = await import("@/lib/due-date-inference");
+    const anchor = new Date();
+    const anchorYear = anchor.getFullYear();
+    const limit = Math.min(pending.length, 15);
+
+    console.log(`GenesisAI Scraper: Resolving due dates from ${limit} assignment detail pages...`);
+
+    for (const item of pending.slice(0, limit)) {
+        if (!item.href) continue;
+        try {
+            await safeGoto(page, item.href, 25000);
+            await sleep(1000);
+
+            const dueFromDom = await page.evaluate(`(() => {
+                const parseNamed = (raw) => {
+                    const text = (raw || "").replace(/\\s+/g, " ").trim();
+                    const iso = text.match(/(\\d{4}-\\d{2}-\\d{2})/);
+                    if (iso) return iso[1];
+                    const named = text.match(/([A-Za-z]+)\\s+(\\d{1,2})(?:,?\\s*(\\d{4}))?/);
+                    if (!named) return null;
+                    const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+                    const m = months[named[1].slice(0,3).toLowerCase()];
+                    if (m === undefined) return null;
+                    const y = named[3] ? Number(named[3]) : new Date().getFullYear();
+                    return y + "-" + String(m + 1).padStart(2, "0") + "-" + named[2].padStart(2, "0");
+                };
+
+                for (const timeEl of document.querySelectorAll("time[datetime]")) {
+                    const dt = timeEl.getAttribute("datetime") || "";
+                    const iso = dt.match(/(\\d{4}-\\d{2}-\\d{2})/);
+                    if (iso) return iso[1];
+                }
+
+                const labelWords = ["due date", "end date", "deadline", "closes", "available until"];
+                for (const el of document.querySelectorAll("label, dt, th, .d2l-label, .d2l-datalabel")) {
+                    const label = (el.textContent || "").trim().toLowerCase();
+                    if (!labelWords.some((w) => label === w || label.startsWith(w))) continue;
+                    const sibling = el.nextElementSibling || el.parentElement?.querySelector(".d2l-datalabel-value, dd, time, span");
+                    const parsed = parseNamed(sibling?.textContent || el.parentElement?.textContent || "");
+                    if (parsed) return parsed;
+                }
+
+                const body = document.body?.innerText || "";
+                const labeled = body.match(/(?:due\\s*date|end\\s*date)\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2},?\\s*\\d{4})/i);
+                return labeled ? parseNamed(labeled[1]) : null;
+            })()`);
+
+            let dueDate = dueFromDom || null;
+            if (!dueDate) {
+                const detailText = await extractVisibleText(page);
+                dueDate = findDueDateInBlob(detailText, anchorYear, anchor);
+            }
+
+            if (dueDate && isReasonableDueDate(dueDate, anchor)) {
+                item.dueDate = dueDate;
+                console.log(`GenesisAI Scraper: Found due date for "${item.task}": ${dueDate}`);
+            }
+        } catch (error) {
+            console.warn(`GenesisAI Scraper: Could not read due date from ${item.href}`, error);
+        }
+    }
+
+    return `\n\n=== STRUCTURED: Assignments ===\n${JSON.stringify(payload)}\n`;
+}
+
+async function extractD2LStructured(page: any, sectionName: string): Promise<string> {
+    try {
+        const payload = await page.evaluate(`((section) => {
+            const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim();
+            const parseDue = (text) => {
+                const raw = normalize(text);
+                if (!raw) return null;
+                const iso = raw.match(/(\\d{4})-(\\d{2})-(\\d{2})/);
+                if (iso) return iso[0];
+                const slash = raw.match(/(\\d{1,2})\\/(\\d{1,2})(?:\\/(\\d{2,4}))?/);
+                if (slash) {
+                    const year = slash[3] ? (slash[3].length === 2 ? 2000 + Number(slash[3]) : Number(slash[3])) : new Date().getFullYear();
+                    return year + "-" + slash[1].padStart(2, "0") + "-" + slash[2].padStart(2, "0");
+                }
+                const named = raw.match(/([A-Za-z]+)\\s+(\\d{1,2})(?:,?\\s*(\\d{4}))?/);
+                if (named) {
+                    const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+                    const month = months[named[1].slice(0,3).toLowerCase()];
+                    if (month === undefined) return null;
+                    const year = named[3] ? Number(named[3]) : new Date().getFullYear();
+                    return year + "-" + String(month + 1).padStart(2, "0") + "-" + named[2].padStart(2, "0");
+                }
+                return null;
+            };
+
+            const parseDueFromNode = (node) => {
+                if (!node) return null;
+                const timeEl = node.querySelector("time[datetime]");
+                if (timeEl) {
+                    const dt = timeEl.getAttribute("datetime") || "";
+                    const iso = dt.match(/(\\d{4}-\\d{2}-\\d{2})/);
+                    if (iso) return iso[1];
+                }
+                const labeled = (node.textContent || "").match(/(?:due|end)\\s*date\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2}[^\\n,]{0,20}(?:\\d{4})?)/i);
+                if (labeled) return parseDue(labeled[1]);
+                return null;
+            };
+
+            const heading = document.querySelector(".d2l-page-heading, h1, h2");
+            let course = normalize(heading ? heading.textContent : "");
+            course = course.replace(/^(Quiz\\s*List|Assignments|Quizzes|Discussions|Grades)\\s*[-–—]\\s*/i, "");
+
+            const items = [];
+            const seen = new Set();
+
+            const sectionLower = (section || "").toLowerCase();
+            const isDiscussions = sectionLower.includes("discussion");
+            const isQuizzes = sectionLower.includes("quiz");
+            const isAssignments = sectionLower.includes("assignment");
+            const isGrades = sectionLower.includes("grade");
+
+            const acceptTitle = (title) => {
+                if (!title || title.length < 5) return false;
+                if (/hit a key|stay logged in|view history|completion status|evaluation status|national university/i.test(title)) return false;
+                if (isDiscussions) {
+                    return title.length >= 5 && !/^(name|due date|topic|threads|posts|forum)$/i.test(title);
+                }
+                if (isQuizzes) {
+                    return title.length >= 5 && !/^(name|due date|status|attempts|score)$/i.test(title);
+                }
+                if (isAssignments) {
+                    if (/are you still there|quiz\s*list|view history|oh,?\s*there you are/i.test(title)) return false;
+                    return /assignment\s*\d+\s*:/i.test(title) || (title.length >= 8 && !/^(name|due date|status|score|feedback|actions)$/i.test(title));
+                }
+                const isAnnouncements = sectionLower.includes("announcement");
+                if (isAnnouncements) {
+                    return title.length >= 10 && !/^(name|date|posted|author)$/i.test(title);
+                }
+                return title.length >= 8;
+            };
+
+            const pushItem = (task, dueText, details, href) => {
+                const title = normalize(task);
+                if (!acceptTitle(title)) return;
+                const dueDate = parseDue(dueText || "");
+                const key = sectionLower + "|" + title.toLowerCase();
+                if (seen.has(key)) return;
+                seen.add(key);
+                items.push({ task: title, dueDate: dueDate || null, details: normalize(details) || null, href: href || null });
+            };
+
+            let currentWeek = null;
+
+            document.querySelectorAll("table").forEach((table) => {
+                const headerCells = [...table.querySelectorAll("thead th, tr th")].map((cell) => normalize(cell.textContent).toLowerCase());
+                const dueIdx = headerCells.findIndex((h) => h.includes("due") || h.includes("end date"));
+                const nameIdx = headerCells.findIndex((h) => h === "name" || h.includes("title") || h.includes("assignment") || h.includes("submission"));
+
+                table.querySelectorAll("tbody tr").forEach((row) => {
+                    const cells = [...row.querySelectorAll("td")];
+                    const rowText = normalize(row.textContent);
+                    const weekHeader = rowText.match(/^week\s*(\d{1,2})\b/i);
+                    if (weekHeader && (!cells.length || cells.length <= 2)) {
+                        currentWeek = weekHeader[1];
+                        return;
+                    }
+                    if (cells.length === 0) return;
+                    const link = row.querySelector("a[href*='dropbox'], a[href*='folders'], a[href]");
+                    const nameCell = nameIdx >= 0 ? cells[nameIdx] : cells[0];
+                    const task = normalize(link ? link.textContent : nameCell ? nameCell.textContent : "");
+                    const dueCell = dueIdx >= 0 ? cells[dueIdx] : null;
+                    let dueText = dueCell ? dueCell.textContent : "";
+                    if (!dueText) dueText = parseDueFromNode(row) || "";
+                    const weekHint = currentWeek ? "Week " + currentWeek : "";
+                    pushItem(task, dueText, weekHint, link ? link.href : null);
+                });
+            });
+
+            if (isGrades) {
+                document.querySelectorAll("tr").forEach((row) => {
+                    const rowText = normalize(row.textContent);
+                    const rowTextLower = rowText.toLowerCase();
+                    if (rowTextLower.includes("final calculated grade") || rowTextLower.includes("final grade") || rowTextLower.includes("calculated grade")) {
+                        let gradePct = "";
+                        row.querySelectorAll("td, th").forEach((cell) => {
+                            const text = normalize(cell.textContent);
+                            const match = text.match(/(\d{1,3}(?:\.\d+)?\s*%)/);
+                            if (match) {
+                                gradePct = match[1];
+                            }
+                        });
+                        if (gradePct) {
+                            pushItem("Final Calculated Grade", "", gradePct, null);
+                        }
+                    }
+                });
+                return { section, course, items };
+            }
+
+            if (isAssignments) {
+                document.querySelectorAll("a[href*='dropbox'], a[href*='folders_list']").forEach((link) => {
+                    const task = normalize(link.textContent || "");
+                    if (!acceptTitle(task)) return;
+                    const row = link.closest("tr");
+                    let dueText = "";
+                    let weekHint = currentWeek ? "Week " + currentWeek : "";
+                    if (row) {
+                        dueText = parseDueFromNode(row) || "";
+                        const prevRows = row.parentElement ? [...row.parentElement.querySelectorAll("tr")] : [];
+                        const idx = prevRows.indexOf(row);
+                        for (let i = idx - 1; i >= 0 && i >= idx - 6; i--) {
+                            const weekMatch = normalize(prevRows[i].textContent).match(/^week\\s*(\\d{1,2})\\b/i);
+                            if (weekMatch) {
+                                weekHint = "Week " + weekMatch[1];
+                                break;
+                            }
+                        }
+                    }
+                    pushItem(task, dueText, weekHint, link.href || null);
+                });
+                return { section, course, items };
+            }
+
+            if (isDiscussions) {
+                document.querySelectorAll("a[href*='discussions'], a[href*='topic']").forEach((link) => {
+                    const task = normalize(link.textContent || "");
+                    if (!acceptTitle(task)) return;
+                    pushItem(task, "", "", link.href || null);
+                });
+                return { section, course, items };
+            }
+
+            document.querySelectorAll("d2l-list-item, .d2l-datalist-item, li").forEach((node) => {
+                const link = node.querySelector("a[href]");
+                const task = normalize(link ? link.textContent : node.textContent);
+                if (!task) return;
+                pushItem(task, node.textContent, "", link ? link.href : null);
+            });
+
+            return { section, course, items };
+        })(${JSON.stringify(sectionName)})`);
+
+        if (!payload?.items?.length) {
+            return "";
+        }
+
+        return `\n\n=== STRUCTURED: ${sectionName} ===\n${JSON.stringify(payload)}\n`;
+    } catch (error) {
+        console.warn(`GenesisAI Scraper: Structured ${sectionName} extraction failed`, error);
+        return "";
+    }
+}
+
 async function extractVisibleText(page: any): Promise<string> {
     const extractFromFrame = async (frame: any) => {
         if (!frame || frame.isDetached()) {
@@ -117,8 +478,15 @@ async function extractVisibleText(page: any): Promise<string> {
     return Array.from(new Set(frameTexts.filter((text: string) => text.length > 0))).join("\n");
 }
 
-export async function scrapePortal(url: string, user?: string, pass?: string): Promise<string> {
-    console.log(`GenesisAI Scraper: Starting mission for ${url}`);
+export async function scrapePortal(
+    url: string,
+    user?: string,
+    pass?: string,
+    options?: ScrapePortalOptions
+): Promise<string> {
+    console.log(`GenesisAI Scraper: Starting mission for ${url}`, {
+        sessionReady: Boolean(options?.sessionReady),
+    });
 
     if (typeof window !== 'undefined') {
         console.warn("GenesisAI Agent: Direct scraping is not supported in the browser. Call the /api/scrape endpoint.");
@@ -129,7 +497,7 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
     return new Promise((resolve, reject) => {
         scraperMutex = scraperMutex.then(async () => {
             try {
-                const result = await runScrapingMission(url, user, pass);
+                const result = await runScrapingMission(url, user, pass, options);
                 resolve(result);
             } catch (err) {
                 reject(err);
@@ -142,7 +510,15 @@ export async function scrapePortal(url: string, user?: string, pass?: string): P
     });
 }
 
-async function runScrapingMission(url: string, user?: string, pass?: string): Promise<string> {
+async function runScrapingMission(
+    url: string,
+    user?: string,
+    pass?: string,
+    options?: ScrapePortalOptions
+): Promise<string> {
+    const { normalizePortalScrapeUrl } = await import("@/lib/d2l-portal");
+    url = normalizePortalScrapeUrl(url);
+
     // Use dynamic imports for Node-only modules
     const puppeteer = (await import('puppeteer-core')).default;
     const fs = await import('fs');
@@ -165,42 +541,29 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
     }
 
     const executablePath = getExecutablePath();
-    let browser = await getSharedBrowser(puppeteer, executablePath, fs, false);
-    let page = await browser.newPage();
+    const sessionReady = Boolean(options?.sessionReady);
+    const browserAlreadyRunning = Boolean(sharedBrowser?.isConnected());
+
+    // One browser for the whole app session. Visible window only for first-time login.
+    const launchVisible = !sessionReady && !browserAlreadyRunning;
+    let browser = await getSharedBrowser(puppeteer, executablePath, fs, launchVisible);
+    let page = await getOrCreatePortalPage(browser, url);
 
     try {
-        // Set a timeout of 60 seconds
         page.setDefaultNavigationTimeout(60000);
-        console.log(`GenesisAI Scraper: Navigating to ${url}...`);
+        console.log(`GenesisAI Scraper: Navigating to ${url} (reuse tab: ${browserAlreadyRunning})...`);
         await safeGoto(page, url);
 
-        const needsInteractiveLogin = async () => {
-            if (isOktaUrl(page.url())) return true;
-            try {
-                return await page.evaluate(`(() => {
-                    return Array.from(document.querySelectorAll("input")).some((input) => {
-                        const type = (input.type || "").toLowerCase();
-                        const name = (input.name || "").toLowerCase();
-                        const id = (input.id || "").toLowerCase();
-                        const placeholder = (input.placeholder || "").toLowerCase();
-                        return (
-                            type === "password" || name.includes("password") || id.includes("password") || placeholder.includes("password") ||
-                            name.includes("username") || id.includes("username") || placeholder.includes("username") || placeholder.includes("email")
-                        );
-                    });
-                })()`);
-            } catch { return false; }
-        };
+        const loggedIn = await pageLooksLoggedIn(page);
 
-        if (!sharedBrowserVisible && await needsInteractiveLogin()) {
-            console.log("GenesisAI Scraper: Login required. Switching to visible browser.");
-            await page.close().catch(() => {});
+        if (!loggedIn && !sharedBrowserVisible) {
+            console.log("GenesisAI Scraper: Login required. Opening visible browser once.");
             await browser.close().catch(() => {});
             sharedBrowser = null;
             sharedBrowserPromise = null;
 
             browser = await getSharedBrowser(puppeteer, executablePath, fs, true);
-            page = await browser.newPage();
+            page = await getOrCreatePortalPage(browser, url);
             page.setDefaultNavigationTimeout(60000);
             await safeGoto(page, url);
         }
@@ -271,7 +634,18 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
             }
         }
 
-        await handleManualIntervention(page);
+        let readyAfterNav = await pageLooksLoggedIn(page);
+        if (!readyAfterNav) {
+            await handleManualIntervention(page);
+            readyAfterNav = await pageLooksLoggedIn(page);
+        } else {
+            console.log("GenesisAI Scraper: Reusing saved portal session (no login window).");
+            await sleep(1500);
+        }
+
+        if (sharedBrowserVisible && readyAfterNav) {
+            ({ browser, page } = await hideBrowserAfterLogin(puppeteer, executablePath, fs, browser, page));
+        }
 
         let activePage = await getStablePage(browser, page);
         if (!activePage || activePage.isClosed()) {
@@ -283,6 +657,7 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
         const d2lOuMatch =
             activeUrl.match(/[?&]ou=(\d+)/) ||
             activeUrl.match(/\/d2l\/home\/(\d+)/) ||
+            activeUrl.match(/\/le\/lessons\/(\d+)/) ||
             activeUrl.match(/\/content\/(\d+)\//) ||
             activeUrl.match(/\/le\/content\/(\d+)\//);
 
@@ -295,8 +670,10 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
                 if (ou) {
                     const targets = [
                         { name: 'Assignments', url: `${origin}/d2l/lms/dropbox/user/folders_list.d2l?ou=${ou}&isprv=0` },
+                        { name: 'Calendar', url: `${origin}/d2l/le/calendar/${ou}/events` },
                         { name: 'Quizzes', url: `${origin}/d2l/lms/quizzing/user/quizzes_list.d2l?ou=${ou}` },
                         { name: 'Discussions', url: `${origin}/d2l/lms/discussions/user/discussions_list.d2l?ou=${ou}` },
+                        { name: 'Announcements', url: `${origin}/d2l/lms/news/user/news_list.d2l?ou=${ou}` },
                         { name: 'Grades', url: `${origin}/d2l/lms/grades/user/grades_list.d2l?ou=${ou}` }
                     ];
 
@@ -309,9 +686,35 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
                             }
 
                             await safeGoto(activePage, target.url, 30000);
+                            await sleep(1500);
+
+                            const isErrorPage = await activePage.evaluate(() => {
+                                const title = (document.title || "").toLowerCase();
+                                const bodyText = (document.body?.innerText || "").toLowerCase();
+                                const h1Texts = Array.from(document.querySelectorAll("h1")).map(h => (h.textContent || "").toLowerCase());
+                                return title.includes("page not found") ||
+                                    title.includes("404") ||
+                                    title.includes("not authorized") ||
+                                    title.includes("access denied") ||
+                                    bodyText.includes("page not found") ||
+                                    bodyText.includes("page you are looking for cannot be found") ||
+                                    bodyText.includes("not authorized") ||
+                                    bodyText.includes("access denied") ||
+                                    h1Texts.some(t => t.includes("not found") || t.includes("error"));
+                            }).catch(() => false);
+
+                            if (isErrorPage) {
+                                console.warn(`GenesisAI Scraper: Skipping ${target.name} due to Page Not Found or Access Denied on D2L.`);
+                                continue;
+                            }
+
+                            let structured = await extractD2LStructured(activePage, target.name);
+                            if (target.name === "Assignments" && structured) {
+                                structured = await enrichStructuredAssignmentDueDates(activePage, structured);
+                            }
                             const pageContent = await extractVisibleText(activePage);
-                            console.log(`GenesisAI Scraper: ${target.name} extracted ${pageContent.length} characters.`);
-                            aggregatedContent += `\n\n=== SECTION: ${target.name} ===\n\n${pageContent}`;
+                            console.log(`GenesisAI Scraper: ${target.name} extracted ${pageContent.length} characters (${structured ? "structured" : "text only"}).`);
+                            aggregatedContent += structured + `\n\n=== SECTION: ${target.name} ===\n\n${pageContent}`;
                         } catch (err) {
                             console.warn(`Failed to extract ${target.name}`, err);
                         }
@@ -327,7 +730,9 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
             }
         }
 
-        if (isOktaUrl(activeUrl)) throw new Error("Authentication did not complete.");
+        if (isOktaUrl(activeUrl)) {
+            throw new Error(`Authentication did not complete. Browser is still at: ${activeUrl}`);
+        }
 
         activePage = await getStablePage(browser, activePage);
         if (!activePage || activePage.isClosed()) {
@@ -353,7 +758,14 @@ async function runScrapingMission(url: string, user?: string, pass?: string): Pr
         return fallbackText;
 
     } finally {
-        // Keep the shared browser session alive for the next sync.
+        try {
+            const stable = await getStablePage(browser, page);
+            if (stable) {
+                await pruneExtraTabs(browser, stable);
+            }
+        } catch {
+            // Keep shared browser alive even if tab cleanup fails.
+        }
     }
 }
 
@@ -370,15 +782,42 @@ async function stopBrowsersUsingProfile(profileDir: string) {
     });
 }
 
+/** After login, close the visible Chrome window and continue in headless mode (cookies stay in profile). */
+async function hideBrowserAfterLogin(
+    puppeteer: any,
+    executablePath: string,
+    fs: typeof import("fs"),
+    browser: any,
+    page: any
+): Promise<{ browser: any; page: any }> {
+    if (!sharedBrowserVisible) {
+        return { browser, page };
+    }
+
+    const stable = await getStablePage(browser, page);
+    const resumeUrl = stable?.url() || page.url();
+    console.log("GenesisAI Scraper: Login complete — hiding sign-in browser.");
+
+    await browser.close().catch(() => {});
+    sharedBrowser = null;
+    sharedBrowserPromise = null;
+    sharedBrowserVisible = false;
+
+    const headlessBrowser = await getSharedBrowser(puppeteer, executablePath, fs, false);
+    const newPage = await getOrCreatePortalPage(headlessBrowser, resumeUrl);
+    newPage.setDefaultNavigationTimeout(60000);
+
+    if (resumeUrl && !resumeUrl.startsWith("about:")) {
+        await safeGoto(newPage, resumeUrl, 45000);
+        await sleep(1200);
+    }
+
+    return { browser: headlessBrowser, page: newPage };
+}
+
 async function getSharedBrowser(puppeteer: any, executablePath: string, fs: typeof import("fs"), visible = false) {
     if (sharedBrowser && sharedBrowser.isConnected()) {
-        if (sharedBrowserVisible === visible || (sharedBrowserVisible && !visible)) {
-            return sharedBrowser;
-        }
-        console.log("GenesisAI Scraper: Closing browser to change visibility.");
-        await sharedBrowser.close().catch(() => {});
-        sharedBrowser = null;
-        sharedBrowserPromise = null;
+        return sharedBrowser;
     }
 
     if (sharedBrowserPromise) return sharedBrowserPromise;
@@ -565,17 +1004,20 @@ async function handleManualIntervention(page: unknown) {
                         inactiveTime,
                     });
 
-                    const hasEnoughContent = totalTextLength > 2000 || maxFrameTextLength > 1200;
+                    const hasEnoughContent = totalTextLength > 1500 || maxFrameTextLength > 1000;
 
                     const shouldClose = !stillInAuthFlow &&
                         loginLikeInputs === 0 &&
                         (
-                            (looksLikePortal && hasEnoughContent && inactiveTime > 2000) ||
-                            (inactiveTime > 5000)
+                            (looksLikePortal && hasEnoughContent && inactiveTime > 2500) ||
+                            (looksLikePortal && !hasEnoughContent && inactiveTime > 15000)
                         );
 
                     if (shouldClose) {
-                        console.log(`GenesisAI Scraper: Condition met for closing. ${looksLikePortal && hasEnoughContent ? "Portal detected." : "Inactivity timeout reached."}`);
+                        const reason = looksLikePortal && hasEnoughContent 
+                            ? "Portal detected with content." 
+                            : "Portal detected but content is minimal (timeout).";
+                        console.log(`GenesisAI Scraper: Condition met for closing. ${reason}`);
                         cancelled = true;
                         resolve();
                         return;
@@ -609,4 +1051,28 @@ async function handleManualIntervention(page: unknown) {
             }
         }, 300000);
     });
+}
+
+export async function closeSharedBrowser() {
+    if (sharedBrowser) {
+        console.log("GenesisAI Scraper: Closing shared browser...");
+        await sharedBrowser.close().catch(() => {});
+        sharedBrowser = null;
+        sharedBrowserPromise = null;
+        sharedBrowserVisible = false;
+    }
+}
+
+if (typeof process !== "undefined") {
+    const cleanup = () => {
+        if (sharedBrowser) {
+            sharedBrowser.close().catch(() => {});
+            sharedBrowser = null;
+            sharedBrowserPromise = null;
+            sharedBrowserVisible = false;
+        }
+    };
+    process.on("exit", cleanup);
+    process.on("SIGINT", cleanup);
+    process.on("SIGTERM", cleanup);
 }

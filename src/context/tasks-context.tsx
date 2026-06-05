@@ -26,6 +26,8 @@ export const useTasks = () => {
 
 // Create the provider component
 function loadStoredTasks(): Task[] {
+    if (typeof window === "undefined") return [];
+
     try {
         const storedTasks = localStorage.getItem("agendaTasks");
         if (!storedTasks) return [];
@@ -44,13 +46,10 @@ function loadStoredTasks(): Task[] {
 export const TasksProvider = ({children}: { children: ReactNode }) => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
-    const [loading, _setLoading] = useState(false);
 
     useEffect(() => {
-        queueMicrotask(() => {
-            setTasks(loadStoredTasks());
-            setIsInitialized(true);
-        });
+        setTasks(loadStoredTasks());
+        setIsInitialized(true);
     }, []);
 
     // Save tasks to localStorage whenever they change
@@ -84,16 +83,8 @@ export const TasksProvider = ({children}: { children: ReactNode }) => {
         setTasks(data);
     }
 
-    const value = {
-        tasks,
-        addTask,
-        toggleTask,
-        loadData,
-        loading,
-    };
-
     return (
-        <TasksContext.Provider value={value}>
+        <TasksContext.Provider value={{ tasks, addTask, toggleTask, loadData, loading: !isInitialized }}>
             {children}
         </TasksContext.Provider>
     );

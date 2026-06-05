@@ -270,11 +270,20 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
         const url = `${candidate}${formattedEndpoint}`;
 
         try {
-            const response = await fetch(url, init);
+            // Fast timeout for non-localhost candidates to prevent UI lag
+            const signal = candidate.includes('localhost') || candidate.includes('127.0.0.1') || candidate === ''
+                ? init?.signal
+                : AbortSignal.any([init?.signal || new AbortController().signal, AbortSignal.timeout(2000)]);
+
+            const response = await fetch(url, { ...init, signal });
 
             if (response.status === 404 || response.redirected) {
                 failures.push(`${candidate || "relative"} (${response.redirected ? "redirected" : "404"})`);
                 continue;
+            }
+
+            if (response.status === 500) {
+                return response;
             }
 
             if (!response.ok) {
@@ -294,11 +303,14 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
         }
     }
 
-    const hint = isStaticCapacitorHost()
-        ? " Keep Agenda+ open — the desktop app starts the API automatically. First launch can take up to two minutes."
-        : " Run \"npm run dev\" from the Agenda+ project folder.";
+    // SILENT FAIL: If we are on a mobile device and can't reach the computer,
+    // return a successful but "offline" response so the app can stay in standalone mode.
+    if (isStaticCapacitorHost()) {
+        return new Response(JSON.stringify({ offline: true, assignments: [], announcements: [], discussions: [], quizzes: [], grades: [] }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
 
-    throw new Error(
-        `Agenda+ could not reach its local API.${hint} Tried: ${failures.join(", ") || "no candidates"}`
-    );
+    throw new Error(`Agenda+ could not reach its local API. Run "npm run dev" from your PC.`);
 }

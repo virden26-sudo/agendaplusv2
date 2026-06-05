@@ -133,11 +133,20 @@ const listeners: Array<(state: State) => void> = []
 
 let memoryState: State = { toasts: [] }
 
-function dispatch(action: Action) {
-  memoryState = reducer(memoryState, action)
+function notifyListeners() {
   listeners.forEach((listener) => {
     listener(memoryState)
   })
+}
+
+function dispatch(action: Action) {
+  memoryState = reducer(memoryState, action)
+  // Defer subscriber updates so toast() is safe during render / first paint.
+  if (typeof queueMicrotask === "function") {
+    queueMicrotask(notifyListeners)
+  } else {
+    setTimeout(notifyListeners, 0)
+  }
 }
 
 type Toast = Omit<ToasterToast, "id">

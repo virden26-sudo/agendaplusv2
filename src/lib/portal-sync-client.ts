@@ -4,13 +4,13 @@ import type { ParsedAssignment } from "@/ai/schemas/assignment";
 
 export type PortalSyncPayload = {
     assignments: ParsedAssignment[];
-    announcements: { title: string; content?: string; date?: string; course?: string }[];
+    announcements: { title: string; content?: string | null; date?: string | null; course?: string | null }[];
     discussions: {
         title: string;
-        content?: string;
+        content?: string | null;
         dueDate?: string | null;
         postedDate: string;
-        course?: string;
+        course?: string | null;
     }[];
     quizzes: ParsedAssignment[];
     grades: { course: string; grade: string; details?: string | null }[];

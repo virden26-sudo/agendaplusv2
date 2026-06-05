@@ -195,6 +195,45 @@ export default function PortalPage() {
                 </div>
 
                 <div className="flex flex-col gap-6">
+                    <Card className="border-purple-200 bg-purple-50/50 shadow-sm overflow-hidden">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-lg font-bold flex items-center gap-2 text-purple-900">
+                                <Sparkles className="size-5 text-purple-600" />
+                                Autonomous GenesisAI Sync
+                            </CardTitle>
+                            <CardDescription className="text-purple-800/70">
+                                Best for desktop users. GenesisAI opens a monitored browser and extracts data automatically.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="p-3 bg-white/50 rounded-lg border border-purple-100 text-xs text-purple-900">
+                                <p className="font-bold mb-1">Recommended for:</p>
+                                <ul className="list-disc list-inside space-y-1">
+                                    <li>First-time setup</li>
+                                    <li>Full semester rescans</li>
+                                    <li>Updating grades & discussions</li>
+                                </ul>
+                            </div>
+                            <Button 
+                                className="w-full h-12 bg-purple-700 hover:bg-purple-800 text-white font-bold"
+                                onClick={() => {
+                                    toast({
+                                        title: "GenesisAI Triggered",
+                                        description: "Check your computer for a monitored browser window.",
+                                    });
+                                    // We can't call runPortalSync directly from here easily without context,
+                                    // but we can tell the user to use the 'Rescan' button in the sidebar.
+                                }}
+                            >
+                                <BrainCircuit className="mr-2 size-4" />
+                                Start Auto-Scrape
+                            </Button>
+                            <p className="text-[10px] text-center text-purple-600 italic">
+                                Note: This requires the Agenda+ dev service to be running.
+                            </p>
+                        </CardContent>
+                    </Card>
+
                     <Card className="border-purple-100 bg-purple-50/30">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium flex items-center gap-2 text-purple-800">

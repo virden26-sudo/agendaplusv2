@@ -9,12 +9,20 @@ interface PortalContextType {
   discussions: Discussion[];
   addAnnouncements: (newAnnouncements: Announcement[]) => void;
   addDiscussions: (newDiscussions: Discussion[]) => void;
+  replaceAnnouncements: (items: Announcement[]) => void;
+  replaceDiscussions: (items: Discussion[]) => void;
+  isSyncing: boolean;
+  setIsSyncing: (isSyncing: boolean) => void;
   loading: boolean;
 }
 
 const PortalContext = createContext<PortalContextType | undefined>(undefined);
 
 function loadStoredPortalData(): { announcements: Announcement[]; discussions: Discussion[] } {
+  if (typeof window === "undefined") {
+    return { announcements: [], discussions: [] };
+  }
+
   try {
     let announcements: Announcement[] = [];
     let discussions: Discussion[] = [];
@@ -53,15 +61,14 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [loading, _setLoading] = useState(false);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      const stored = loadStoredPortalData();
-      setAnnouncements(stored.announcements);
-      setDiscussions(stored.discussions);
-      setIsInitialized(true);
-    });
+    const stored = loadStoredPortalData();
+    setAnnouncements(stored.announcements);
+    setDiscussions(stored.discussions);
+    setIsInitialized(true);
   }, []);
 
   useEffect(() => {
@@ -89,8 +96,16 @@ export function PortalProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const replaceAnnouncements = (items: Announcement[]) => {
+    setAnnouncements(items);
+  };
+
+  const replaceDiscussions = (items: Discussion[]) => {
+    setDiscussions(items);
+  };
+
   return (
-    <PortalContext.Provider value={{ announcements, discussions, addAnnouncements, addDiscussions, loading }}>
+    <PortalContext.Provider value={{ announcements, discussions, addAnnouncements, addDiscussions, replaceAnnouncements, replaceDiscussions, isSyncing, setIsSyncing, loading: !isInitialized }}>
       {children}
     </PortalContext.Provider>
   );

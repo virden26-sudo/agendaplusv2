@@ -1,7 +1,9 @@
 
 "use client";
 
+import { useMemo } from "react";
 import { useAssignments } from "@/context/assignments-context";
+import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -35,8 +37,9 @@ const AssignmentItem = ({ assignment, toggleAssignment }: AssignmentItemProps) =
                         <div className={cn("font-medium", assignment.completed && "line-through text-muted-foreground")}>{assignment.title}</div>
                         <div className={cn("text-sm text-muted-foreground", assignment.completed && "line-through")}>{assignment.course}</div>
                     </div>
-                    <div className="text-right mx-4">
+                    <div className="text-right mx-4 shrink-0">
                          <p className={cn("text-sm font-medium", dueDateInfo.className)}>{dueDateInfo.text}</p>
+                         <p className="text-xs text-muted-foreground">{format(assignment.dueDate, "MMM d, yyyy")}</p>
                     </div>
                     <Badge variant={getPriorityBadgeVariant(assignment.priority)} className="capitalize">{assignment.priority}</Badge>
                 </AccordionTrigger>
@@ -73,11 +76,24 @@ const NoAssignments = ({title}: {title: string}) => (
     </div>
 );
 
+function groupByCourse(items: Assignment[]) {
+    const groups = new Map<string, Assignment[]>();
+    for (const item of items) {
+        const course = item.course?.trim() || "Other";
+        const bucket = groups.get(course) ?? [];
+        bucket.push(item);
+        groups.set(course, bucket);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
 export function AssignmentsList() {
     const { assignments, toggleAssignment, loading } = useAssignments();
 
     const upcomingAssignments = assignments.filter(a => !a.completed).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
     const completedAssignments = assignments.filter(a => a.completed).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
+    const upcomingByCourse = useMemo(() => groupByCourse(upcomingAssignments), [upcomingAssignments]);
+    const completedByCourse = useMemo(() => groupByCourse(completedAssignments), [completedAssignments]);
 
     if (loading) {
         return <div>Loading assignments...</div>
@@ -92,10 +108,17 @@ export function AssignmentsList() {
                 </CardHeader>
                 <CardContent>
                     {upcomingAssignments.length > 0 ? (
-                        <AssignmentsAccordion 
-                            assignments={upcomingAssignments} 
-                            toggleAssignment={toggleAssignment}
-                        />
+                        <div className="space-y-8">
+                            {upcomingByCourse.map(([course, courseAssignments]) => (
+                                <div key={course} className="space-y-2">
+                                    <h3 className="text-sm font-semibold uppercase tracking-wide text-primary">{course}</h3>
+                                    <AssignmentsAccordion
+                                        assignments={courseAssignments}
+                                        toggleAssignment={toggleAssignment}
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     ) : (
                         <NoAssignments title="No upcoming assignments!" />
                     )}
@@ -109,10 +132,17 @@ export function AssignmentsList() {
                 </CardHeader>
                 <CardContent>
                     {completedAssignments.length > 0 ? (
-                        <AssignmentsAccordion 
-                            assignments={completedAssignments} 
-                            toggleAssignment={toggleAssignment}
-                        />
+                        <div className="space-y-8">
+                            {completedByCourse.map(([course, courseAssignments]) => (
+                                <div key={course} className="space-y-2">
+                                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{course}</h3>
+                                    <AssignmentsAccordion
+                                        assignments={courseAssignments}
+                                        toggleAssignment={toggleAssignment}
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     ) : (
                         <NoAssignments title="No completed assignments yet." />
                     )}

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import type { User } from '@/lib/types';
 import { readLocalStorage, readLocalStorageJson } from '@/lib/storage';
+import { normalizePortalUrlForStorage } from '@/lib/d2l-portal';
 
 interface UserContextType {
     user: User | null;
@@ -19,12 +20,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const [portalUrl, setPortalUrl] = useState("");
     const [isUserLoaded, setIsUserLoaded] = useState(false);
 
-    React.useEffect(() => {
-        queueMicrotask(() => {
-            setUser(readLocalStorageJson<User>("agendaUser"));
-            setPortalUrl(readLocalStorage("studentPortalUrl") || "");
-            setIsUserLoaded(true);
-        });
+    useEffect(() => {
+        setUser(readLocalStorageJson<User>("agendaUser"));
+        setPortalUrl(readLocalStorage("studentPortalUrl") || "");
+        setIsUserLoaded(true);
     }, []);
 
     const handleSetUser = (newUser: User | null) => {
@@ -39,10 +38,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     };
 
     const handleSetPortalUrl = (url: string) => {
+        const normalized = normalizePortalUrlForStorage(url);
         if (typeof window !== "undefined") {
-            localStorage.setItem("studentPortalUrl", url);
+            localStorage.setItem("studentPortalUrl", normalized);
         }
-        setPortalUrl(url);
+        setPortalUrl(normalized);
     };
 
     return (

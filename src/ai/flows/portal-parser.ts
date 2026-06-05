@@ -3,6 +3,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import { AssignmentSchema } from '@/ai/schemas/assignment';
 import { scrapePortal } from '@/lib/scraper';
+import { resolveAssignmentDueDates } from '@/lib/due-date-inference';
 import { countPortalItems, mergePortalParseResults, parsePortalTextHeuristically } from '@/lib/portal-text-parser';
 
 const getErrorMessage = (error: unknown) => {
@@ -73,9 +74,12 @@ const PortalParserInputSchema = z.object({
   portalText: z.string().optional(),
   portalFile: z.string().optional(), // Support for data URIs (images, PDFs)
   url: z.string().optional(),
+  portalUrl: z.string().optional(),
   username: z.string().optional(),
   password: z.string().optional(),
   currentDate: z.string().optional(),
+  mode: z.enum(["startup", "manual", "background"]).optional(),
+  sessionReady: z.boolean().optional(),
 });
 
 const PortalParserOutputSchema = z.object({
@@ -173,12 +177,26 @@ const parsePortalFlow = ai.defineFlow(
     let textToParse = input.portalText || "";
     let fileToParse = input.portalFile || "";
 
-    if (input.url) {
-        console.log(`GenesisAi: Launching autonomous scraper for ${input.url}`);
+    let scrapeUrl = (input.url || input.portalUrl || "").trim();
+    if (scrapeUrl) {
+        // Robust cleanup for corrupted URLs (e.g. "https:https://...")
+        scrapeUrl = scrapeUrl.replace(/^(https?:)+/i, (match) => {
+            return match.toLowerCase().includes('https') ? 'https:' : 'http:';
+        });
+
+        if (scrapeUrl.startsWith('https:/') && !scrapeUrl.startsWith('https://')) {
+            scrapeUrl = scrapeUrl.replace('https:/', 'https://');
+        }
+
+        const { normalizePortalScrapeUrl } = await import('@/lib/d2l-portal');
+        scrapeUrl = normalizePortalScrapeUrl(scrapeUrl);
+        console.log(`GenesisAi: Launching autonomous scraper for ${scrapeUrl}`);
         try {
-            textToParse = await scrapePortal(input.url, input.username, input.password);
+            textToParse = await scrapePortal(scrapeUrl, input.username, input.password, {
+                sessionReady: input.sessionReady,
+            });
         } catch (scrapeError: unknown) {
-            console.warn(`GenesisAi: Scraping failed for ${input.url}:`, scrapeError);
+            console.warn(`GenesisAi: Scraping failed for ${scrapeUrl}:`, scrapeError);
             const message = getErrorMessage(scrapeError);
             if (/detached|lifecyclewatcher/i.test(message)) {
                 throw new Error(
@@ -190,6 +208,11 @@ const parsePortalFlow = ai.defineFlow(
     }
 
     if (!textToParse && !fileToParse) {
+        if (scrapeUrl) {
+            throw new Error(
+                "GenesisAI could not read your portal yet. Complete login in the browser window Agenda+ opened, wait for your course list to load, then tap Rescan."
+            );
+        }
         return {
             assignments: [],
             announcements: [],
@@ -209,7 +232,7 @@ const parsePortalFlow = ai.defineFlow(
       );
     }
 
-    const deterministicResult = parsePortalTextHeuristically(cleanedText, currentDate);
+    const deterministicResult = parsePortalTextHeuristically(textToParse, currentDate);
     const deterministicCount = countPortalItems(deterministicResult);
 
     console.log("GenesisAi: Deterministic portal parser found", {
@@ -220,12 +243,16 @@ const parsePortalFlow = ai.defineFlow(
       total: deterministicCount,
     });
 
+    if (deterministicCount === 0 && textToParse.includes("STRUCTURED:")) {
+      console.warn("GenesisAi: Scraper returned structured D2L data but parser extracted 0 items — check title/due-date rules.");
+    }
+
     // Reliable path: scraped D2L section text parses without waiting on Ollama.
     if (deterministicCount > 0) {
       console.log("GenesisAi: Using deterministic extraction (Ollama skipped).");
       return {
         ...deterministicResult,
-        grades: [],
+        grades: (deterministicResult as any).grades || [],
       };
     }
 
@@ -282,7 +309,11 @@ const parsePortalFlow = ai.defineFlow(
         );
       }
 
-      return merged;
+      return {
+        ...merged,
+        assignments: resolveAssignmentDueDates(merged.assignments, textToParse, currentDate),
+        quizzes: resolveAssignmentDueDates(merged.quizzes, textToParse, currentDate),
+      };
     } catch (error: unknown) {
       console.error("GenesisAi portal parsing failed:", error);
       if (

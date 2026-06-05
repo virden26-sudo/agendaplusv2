@@ -33,6 +33,8 @@ export const useQuizzes = () => {
 
 // Create the provider component
 function loadStoredQuizzes(): Quiz[] {
+    if (typeof window === "undefined") return [];
+
     try {
         const storedQuizzes = localStorage.getItem("agendaQuizzes");
         if (!storedQuizzes) return [];
@@ -51,13 +53,10 @@ function loadStoredQuizzes(): Quiz[] {
 export const QuizzesProvider = ({children}: { children: ReactNode }) => {
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
-    const [loading, _setLoading] = useState(false);
 
     useEffect(() => {
-        queueMicrotask(() => {
-            setQuizzes(loadStoredQuizzes());
-            setIsInitialized(true);
-        });
+        setQuizzes(loadStoredQuizzes());
+        setIsInitialized(true);
     }, []);
 
     // Save quizzes to localStorage whenever they change
@@ -84,15 +83,8 @@ export const QuizzesProvider = ({children}: { children: ReactNode }) => {
         setQuizzes(parsedData);
     };
 
-    const value = {
-        quizzes,
-        addQuiz,
-        loadData,
-        loading,
-    };
-
     return (
-        <QuizzesContext.Provider value={value}>
+        <QuizzesContext.Provider value={{ quizzes, addQuiz, loadData, loading: !isInitialized }}>
             {children}
         </QuizzesContext.Provider>
     );

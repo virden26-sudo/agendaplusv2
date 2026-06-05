@@ -6,11 +6,13 @@ import type { Assignment } from '@/lib/types';
 import type { ParsedAssignment } from '@/ai/schemas/assignment';
 import { v4 as uuidv4 } from 'uuid';
 import { differenceInDays } from 'date-fns';
+import { isJunkCourseName, isObviousJunkTitle, sanitizeCourseName } from '@/lib/assignment-quality';
+import { resolveDueDateForImport, fallbackImportDueDate } from '@/lib/due-date-inference';
 
 interface AssignmentsContextType {
   assignments: Assignment[];
   addAssignment: (assignment: Omit<Assignment, 'id' | 'completed' | 'priority' | 'dueDate'> & {dueDate: string | Date}) => void;
-  addMultipleAssignments: (newAssignments: ParsedAssignment[]) => void;
+  addMultipleAssignments: (newAssignments: ParsedAssignment[], options?: { replace?: boolean }) => void;
   toggleAssignment: (id: string) => void;
   loading: boolean;
 }
@@ -25,15 +27,21 @@ const getPriority = (dueDate: Date): 'low' | 'medium' | 'high' => {
 };
 
 function loadStoredAssignments(): Assignment[] {
+  if (typeof window === "undefined") return [];
+
   try {
     const storedAssignments = localStorage.getItem('agendaAssignments');
     if (!storedAssignments) return [];
     const parsed = JSON.parse(storedAssignments);
     if (!Array.isArray(parsed)) return [];
-    return parsed.map((a: Assignment & { dueDate: string }) => ({
-      ...a,
-      dueDate: new Date(a.dueDate),
-    }));
+    return parsed
+      .filter((a: Assignment) => !isObviousJunkTitle(a.title))
+      .map((a: Assignment & { dueDate: string }) => ({
+        ...a,
+        course: sanitizeCourseName(a.course),
+        dueDate: new Date(a.dueDate),
+      }))
+      .filter((a: Assignment) => !isJunkCourseName(a.course) && !isObviousJunkTitle(a.course));
   } catch (error) {
     console.error("Failed to parse assignments from localStorage", error);
     return [];
@@ -43,13 +51,10 @@ function loadStoredAssignments(): Assignment[] {
 export function AssignmentsProvider({ children }: { children: ReactNode }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
-  const [loading, _setLoading] = useState(false);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      setAssignments(loadStoredAssignments());
-      setIsInitialized(true);
-    });
+    setAssignments(loadStoredAssignments());
+    setIsInitialized(true);
   }, []);
 
   useEffect(() => {
@@ -70,10 +75,8 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
     setAssignments(prev => [...prev, newAssignment]);
   };
 
-  const addMultipleAssignments = (newAssignments: ParsedAssignment[]) => {
-    setAssignments(prev => {
-        const existingMap = new Map(prev.map(a => [`${a.title.toLowerCase()}|${a.course.toLowerCase()}`, a]));
-        const assignmentsToAdd: Assignment[] = [];
+  const buildAssignmentsFromParsed = (newAssignments: ParsedAssignment[]): Assignment[] => {
+        const built: Assignment[] = [];
 
         for (const a of newAssignments) {
             const task = (a.task || "").trim();
@@ -81,23 +84,57 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
                 continue;
             }
 
-            const key = `${task.toLowerCase()}|${(a.course || 'Uncategorized').toLowerCase()}`;
-            if (!existingMap.has(key)) {
-                const dueDate = a.dueDate ? new Date(a.dueDate) : new Date();
-                if (Number.isNaN(dueDate.getTime())) {
-                    continue;
-                }
-                assignmentsToAdd.push({
-                    id: uuidv4(),
-                    title: task,
-                    course: a.course || 'Uncategorized',
-                    details: a.details || undefined,
-                    dueDate: dueDate,
-                    completed: false,
-                    priority: getPriority(dueDate),
-                });
+            if (isObviousJunkTitle(task)) {
+                continue;
             }
+
+            const courseName = sanitizeCourseName(a.course || "Course");
+            if (isJunkCourseName(courseName)) {
+                continue;
+            }
+
+            const dueIso =
+                a.dueDate ||
+                resolveDueDateForImport(task, {
+                    dueDate: null,
+                    details: a.details,
+                    portalText: "",
+                    currentDate: new Date().toLocaleDateString("en-CA"),
+                }).dueDate ||
+                fallbackImportDueDate();
+
+            const dueDate = new Date(dueIso);
+            if (Number.isNaN(dueDate.getTime())) {
+                continue;
+            }
+            built.push({
+                id: uuidv4(),
+                title: task,
+                course: courseName,
+                details: a.details || undefined,
+                dueDate,
+                completed: false,
+                priority: getPriority(dueDate),
+            });
         }
+
+        return built;
+  };
+
+  const addMultipleAssignments = (newAssignments: ParsedAssignment[], options?: { replace?: boolean }) => {
+    const parsed = buildAssignmentsFromParsed(newAssignments);
+
+    setAssignments((prev) => {
+        if (options?.replace) {
+            return parsed;
+        }
+
+        if (parsed.length === 0) return prev;
+
+        const existingMap = new Map(prev.map((a) => [`${a.title.toLowerCase()}|${a.course.toLowerCase()}`, a]));
+        const assignmentsToAdd = parsed.filter(
+            (a) => !existingMap.has(`${a.title.toLowerCase()}|${a.course.toLowerCase()}`)
+        );
 
         if (assignmentsToAdd.length === 0) return prev;
         return [...prev, ...assignmentsToAdd];
@@ -112,7 +149,7 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AssignmentsContext.Provider value={{ assignments, addAssignment, addMultipleAssignments, toggleAssignment, loading }}>
+    <AssignmentsContext.Provider value={{ assignments, addAssignment, addMultipleAssignments, toggleAssignment, loading: !isInitialized }}>
       {children}
     </AssignmentsContext.Provider>
   );

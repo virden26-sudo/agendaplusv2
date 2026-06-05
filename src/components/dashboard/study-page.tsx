@@ -21,7 +21,7 @@ export function StudyPage() {
   React.useEffect(() => {
     const resolved =
       savedPortalUrl || readLocalStorage("studentPortalUrl") || "https://navigate.nu.edu/d2l/home";
-    queueMicrotask(() => setPortalUrl(resolved));
+    setPortalUrl(resolved);
   }, [savedPortalUrl]);
 
   const handlePortalUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {

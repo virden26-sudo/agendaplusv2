@@ -105,7 +105,10 @@ export function PortalSyncDialog({
         }
     };
 
-    const previewCount = portalText.trim() ? countPortalItems(parsePortalDataOnDevice(portalText)) : 0;
+    const previewCount = React.useMemo(
+        () => (portalText.trim() ? countPortalItems(parsePortalDataOnDevice(portalText)) : 0),
+        [portalText]
+    );
 
     return (
         <Dialog open={open} onOpenChange={handleDialogOpenChange}>

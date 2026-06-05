@@ -80,7 +80,7 @@ export function OnboardingDialog({open, onOpenChange}: OnboardingDialogProps) {
                         </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                        After setup, you&apos;ll log into your school portal once and copy your assignments — everything stays on this device.
+                        After setup, GenesisAI opens your school portal in a monitored browser and imports assignments automatically — no copying required.
                     </p>
                 </div>
                 <DialogFooter>

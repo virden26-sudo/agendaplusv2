@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
 import { AssignmentsProvider } from '@/context/assignments-context';
@@ -8,6 +9,7 @@ import { QuizzesProvider } from '@/context/quizzes-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { UserProvider } from '@/context/user-context';
 import { AppShell } from '@/components/layout/app-shell';
+import { Loader2 } from 'lucide-react';
 import { Roboto, Dancing_Script } from 'next/font/google';
 
 const roboto = Roboto({
@@ -42,6 +44,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={`${roboto.variable} ${dancingScript.variable}`}>
       <body>
+        <Suspense fallback={
+          <div className="flex items-center justify-center h-screen bg-background">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          </div>
+        }>
           <UserProvider>
             <TasksProvider>
               <QuizzesProvider>
@@ -57,6 +64,7 @@ export default function RootLayout({
               </QuizzesProvider>
             </TasksProvider>
           </UserProvider>
+        </Suspense>
         <Toaster />
       </body>
     </html>
