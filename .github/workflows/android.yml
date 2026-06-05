@@ -34,7 +34,7 @@ jobs:
       run: chmod +x android/gradlew
 
     - name: Build Debug
-      run: cd android && ./gradlew assembleDebug --no-daemon
+      run: cd android && ./gradlew assembleDebug --no-daemon --stacktrace
 
     - name: Run lint
       run: cd android && ./gradlew lintDebug --no-daemon || true
