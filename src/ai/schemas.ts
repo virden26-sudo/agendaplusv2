@@ -35,7 +35,36 @@ export const StudyPlanSchema = z.object({
     sessions: z.array(StudySessionSchema).describe("A list of scheduled study sessions."),
 });
 
-export type StudyPlan = z.infer<typeof StudyPlanSchema>;
+export const PlacementTestSchema = z.object({
+    courseName: z.string().describe("The name of the course the test is for."),
+    questions: z.array(z.object({
+        questionText: z.string().describe("The text of the question."),
+        options: z.array(z.string()).describe("Multiple-choice options."),
+        correctAnswerIndex: z.number().describe("The index of the correct option."),
+        explanation: z.string().describe("Explanation for why the answer is correct."),
+    })).describe("A list of questions for the placement test."),
+});
+
+export const TestResultsSchema = z.object({
+    courseName: z.string().describe("The name of the course."),
+    results: z.array(z.object({
+        questionText: z.string().describe("The text of the question."),
+        userAnswerIndex: z.number().describe("The index of the option chosen by the user."),
+        correctAnswerIndex: z.number().describe("The index of the correct option."),
+        wasCorrect: z.boolean().describe("Whether the user's answer was correct."),
+        explanation: z.string().describe("Explanation for why the answer is correct."),
+    })).describe("The results of the placement test."),
+});
+
+export const LearningStrategiesSchema = z.object({
+    strategies: z.array(z.object({
+        topic: z.string().describe("The topic where the student struggled."),
+        resources: z.array(z.string()).describe("A list of recommended resources or strategies (e.g., links to tutorials, practice exercises, summary techniques)."),
+    })).describe("A list of personalized learning strategies."),
+});
+
+export type TestResults = z.infer<typeof TestResultsSchema>;
+export type LearningStrategies = z.infer<typeof LearningStrategiesSchema>;
 
 
 // Schemas for the AI Tutor

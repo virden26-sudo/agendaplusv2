@@ -1,19 +1,22 @@
-import {NextRequest, NextResponse} from 'next/server';
-import {getTutorResponse} from '@/ai/flows/tutor-flow';
-import {corsOptions, withCors} from '@/lib/cors';
-
-export const OPTIONS = corsOptions;
+import { NextRequest, NextResponse } from 'next/server';
+import { generatePlacementTest } from '@/ai/flows/tutor-test-flow';
+import { generateLearningStrategies } from '@/ai/flows/tutor-analysis-flow';
 
 export async function POST(request: NextRequest) {
+    const body = await request.json();
+    const { action, data } = body;
+
     try {
-        const body = await request.json();
-        const result = await getTutorResponse(body);
-        return withCors(NextResponse.json(result));
-    } catch (error) {
-        console.error('Tutor response error:', error);
-        return withCors(NextResponse.json(
-            {error: 'Failed to generate tutor response'},
-            {status: 500}
-        ));
+        if (action === 'generateTest') {
+            const result = await generatePlacementTest(data.courseName);
+            return NextResponse.json(result);
+        } else if (action === 'analyzeTest') {
+            const result = await generateLearningStrategies(data.testResults);
+            return NextResponse.json(result);
+        } else {
+            return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        }
+    } catch (error: any) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }

@@ -310,7 +310,7 @@ Do not open public issues for undisclosed vulnerabilities. Contact the maintaine
 Natural-language assignment parsing, tutor, and portal AI helpers use **Genkit** and a local **Ollama** server:
 
 - URL: `http://127.0.0.1:11434`
-- Model: `GenesisAi-Standalone` (per project docs)
+- Model: `Budd-ie-Standalone` (per project docs)
 
 ```bash
 npm run ai
