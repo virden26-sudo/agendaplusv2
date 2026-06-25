@@ -66,12 +66,13 @@ if (typeof window === 'undefined') {
       plugins: [
         ollama({
           models: [
-            {name: 'genesisai-standalone:latest'}
+            {name: 'budd-ie:latest'},
+            {name: 'llama3:latest'}
           ],
           serverAddress: 'http://127.0.0.1:11434',
         }),
       ],
-      model: 'ollama/genesisai-standalone:latest',
+      model: 'ollama/budd-ie:latest',
     });
     console.log("Genkit: Node.js instance initialized.");
   } catch (e) {

@@ -35,18 +35,18 @@ const parseGradesFlow = ai.defineFlow(
     outputSchema: ParseGradesOutputSchema,
   },
   async (input: any) => {
-    console.log("GenesisAi: Parsing grades via Ollama...");
+    console.log("BUDD-IE: Parsing grades via Ollama...");
 
     try {
       const cleanedGradesText = input.gradesText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/genesisai-standalone:latest',
+        model: 'ollama/budd-ie:latest',
         config: {
           num_ctx: 16384,
           temperature: 0.1,
         },
         onChunk: () => {},
-        system: `You are GenesisAi-Standalone, an academic performance analyst.
+        system: `You are BUDD-IE, an academic performance analyst.
         Your mission is to scan raw grades text and extract course names and their corresponding grades.
 
         RULES:
@@ -61,7 +61,7 @@ const parseGradesFlow = ai.defineFlow(
 
       return output || { courses: [] };
     } catch (error) {
-      console.error("GenesisAi grade parsing failed:", error);
+      console.error("BUDD-IE grade parsing failed:", error);
       return { courses: [] };
     }
   }

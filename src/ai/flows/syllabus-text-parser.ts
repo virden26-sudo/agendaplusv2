@@ -37,18 +37,18 @@ const parseSyllabusTextFlow = ai.defineFlow(
   },
   async (input: any) => {
     const currentDate = input.currentDate || new Date().toLocaleDateString('en-CA');
-    console.log("GenesisAi: Parsing syllabus text via Ollama...");
+    console.log("BUDD-IE: Parsing syllabus text via Ollama...");
 
     try {
       const cleanedSyllabusText = input.syllabusText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/genesisai-standalone:latest',
+        model: 'ollama/budd-ie:latest',
         config: {
           num_ctx: 16384,
           temperature: 0.1,
         },
         onChunk: () => {},
-        system: `You are GenesisAi-Standalone, a precise academic extraction system.
+        system: `You are BUDD-IE, a precise academic extraction system.
         Your mission is to extract every assignment, exam, quiz, and project from the syllabus text.
 
         CRITICAL DATE RULES:
@@ -63,7 +63,7 @@ const parseSyllabusTextFlow = ai.defineFlow(
 
       return output || { assignments: [] };
     } catch (error) {
-      console.error("GenesisAi syllabus text parsing failed:", error);
+      console.error("BUDD-IE syllabus text parsing failed:", error);
       return { assignments: [] };
     }
   }

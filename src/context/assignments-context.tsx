@@ -14,6 +14,7 @@ interface AssignmentsContextType {
   addAssignment: (assignment: Omit<Assignment, 'id' | 'completed' | 'priority' | 'dueDate'> & {dueDate: string | Date}) => void;
   addMultipleAssignments: (newAssignments: ParsedAssignment[], options?: { replace?: boolean }) => void;
   toggleAssignment: (id: string) => void;
+  updateAssignment: (id: string, updatedFields: Partial<Omit<Assignment, 'id'>>) => void;
   loading: boolean;
 }
 
@@ -148,8 +149,24 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const updateAssignment = (id: string, updatedFields: Partial<Omit<Assignment, 'id'>>) => {
+    setAssignments(prev =>
+      prev.map(a => {
+        if (a.id === id) {
+          const merged = { ...a, ...updatedFields };
+          if (updatedFields.dueDate) {
+            merged.dueDate = new Date(updatedFields.dueDate);
+            merged.priority = getPriority(merged.dueDate);
+          }
+          return merged;
+        }
+        return a;
+      })
+    );
+  };
+
   return (
-    <AssignmentsContext.Provider value={{ assignments, addAssignment, addMultipleAssignments, toggleAssignment, loading: !isInitialized }}>
+    <AssignmentsContext.Provider value={{ assignments, addAssignment, addMultipleAssignments, toggleAssignment, updateAssignment, loading: !isInitialized }}>
       {children}
     </AssignmentsContext.Provider>
   );

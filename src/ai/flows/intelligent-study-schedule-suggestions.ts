@@ -46,18 +46,18 @@ const suggestStudyScheduleFlow = ai.defineFlow(
     outputSchema: StudyScheduleOutputSchema,
   },
   async (input: any) => {
-    console.log("GenesisAi: Generating study schedule suggestions via Ollama...");
+    console.log("BUDD-IE: Generating study schedule suggestions via Ollama...");
 
     try {
       const cleanedAssignments = input.assignments.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/genesisai-standalone:latest',
+        model: 'ollama/llama3:latest',
         config: {
           num_ctx: 16384,
           temperature: 0.1,
         },
         onChunk: () => {},
-        system: `You are GenesisAi-Standalone, a high-performance academic strategist.
+        system: `You are BUDD-IE, a high-performance academic strategist.
         Your mission is to create an optimized study schedule that maximizes productivity and minimizes stress.
 
         STRATEGY:
@@ -73,7 +73,7 @@ const suggestStudyScheduleFlow = ai.defineFlow(
 
       return output || { suggestedSchedule: "[]", reasoning: "Could not generate a schedule at this time." };
     } catch (error) {
-      console.error("GenesisAi study schedule generation failed:", error);
+      console.error("BUDD-IE study schedule generation failed:", error);
       return { suggestedSchedule: "[]", reasoning: "An error occurred while planning your schedule." };
     }
   }

@@ -54,7 +54,8 @@ export function AddAssignmentDialog({ open, onOpenChange }: AddAssignmentDialogP
     setIsParsing(true);
     setParsedData(null);
     try {
-      setParsedData(parseAssignmentText(values.naturalInput));
+      const parsed = await parseAssignmentText(values.naturalInput);
+      setParsedData(parsed);
     } catch (error) {
       console.error(error);
       toast({
@@ -70,10 +71,19 @@ export function AddAssignmentDialog({ open, onOpenChange }: AddAssignmentDialogP
   const handleSave = () => {
     if (!parsedData) return;
     
+    if (!parsedData.dueDate) {
+      toast({
+        variant: "destructive",
+        title: "Due date required",
+        description: "BUDD-IE couldn't figure out the exact due date. Please select one before saving.",
+      });
+      return;
+    }
+    
     addAssignment({
         title: parsedData.task,
         course: parsedData.course || 'Uncategorized',
-        dueDate: parsedData.dueDate || new Date(),
+        dueDate: parsedData.dueDate,
         details: parsedData.details || undefined,
     });
 
@@ -142,19 +152,32 @@ export function AddAssignmentDialog({ open, onOpenChange }: AddAssignmentDialogP
           <div className="space-y-4 pt-4">
             <div className="space-y-2">
                 <Label htmlFor="task">Task</Label>
-                <Input id="task" defaultValue={parsedData.task} onChange={(e) => setParsedData({...parsedData, task: e.target.value})} placeholder="Task" />
+                <Input id="task" value={parsedData.task} onChange={(e) => setParsedData({...parsedData, task: e.target.value})} placeholder="Task" />
             </div>
              <div className="space-y-2">
                 <Label htmlFor="course">Course</Label>
-                <Input id="course" defaultValue={parsedData.course || ""} onChange={(e) => setParsedData({...parsedData, course: e.target.value})} placeholder="Course" />
+                <Input id="course" value={parsedData.course || ""} onChange={(e) => setParsedData({...parsedData, course: e.target.value})} placeholder="Course" />
             </div>
              <div className="space-y-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Input id="dueDate" type="date" defaultValue={parsedData.dueDate || ""} onChange={(e) => setParsedData({...parsedData, dueDate: e.target.value})} placeholder="Due Date" />
+                <Label htmlFor="dueDate" className={!parsedData.dueDate ? "text-destructive font-semibold" : ""}>
+                    Due Date {!parsedData.dueDate && " * (Required)"}
+                </Label>
+                <Input 
+                    id="dueDate" 
+                    type="date" 
+                    value={parsedData.dueDate || ""} 
+                    onChange={(e) => setParsedData({...parsedData, dueDate: e.target.value})} 
+                    className={!parsedData.dueDate ? "border-destructive focus-visible:ring-destructive" : ""}
+                />
+                {!parsedData.dueDate && (
+                  <p className="text-xs text-destructive">
+                    ⚠️ BUDD-IE could not determine the exact due date. Please enter a valid date.
+                  </p>
+                )}
             </div>
              <div className="space-y-2">
                 <Label htmlFor="details">Details</Label>
-                <Textarea id="details" defaultValue={parsedData.details || ""} onChange={(e) => setParsedData({...parsedData, details: e.target.value})} placeholder="Details" />
+                <Textarea id="details" value={parsedData.details || ""} onChange={(e) => setParsedData({...parsedData, details: e.target.value})} placeholder="Details" />
             </div>
              <DialogFooter>
                 <Button variant="ghost" onClick={() => { setParsedData(null); setIsParsing(false); }}>Back</Button>

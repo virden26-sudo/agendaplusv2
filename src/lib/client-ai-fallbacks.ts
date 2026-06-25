@@ -26,16 +26,20 @@ export function parseAssignmentHeuristically(
     const course = courseMatch ? courseMatch[1].toUpperCase() : "General";
 
     // 3. Extract Due Date
-    let dueDate = new Date();
+    let dueDate: Date | null = null;
 
     if (lower.includes("tomorrow")) {
+        dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 1);
     } else if (lower.includes("next week")) {
+        dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 7);
     } else if (lower.includes("next friday")) {
+        dueDate = new Date();
         const day = 5; // Friday
         dueDate.setDate(dueDate.getDate() + (day + 7 - dueDate.getDay()) % 7 || 7);
     } else if (lower.includes("next monday")) {
+        dueDate = new Date();
         const day = 1; // Monday
         dueDate.setDate(dueDate.getDate() + (day + 7 - dueDate.getDay()) % 7 || 7);
     } else {
@@ -45,17 +49,18 @@ export function parseAssignmentHeuristically(
             const m = parseInt(dateMatch[1]) - 1;
             const d = parseInt(dateMatch[2]);
             const year = currentDate.getFullYear();
-            dueDate = new Date(year, m, d);
+            const parsedDate = new Date(year, m, d);
             // If date already passed, assume next year
-            if (dueDate < currentDate) {
-                dueDate.setFullYear(year + 1);
+            if (parsedDate < currentDate) {
+                parsedDate.setFullYear(year + 1);
             }
+            dueDate = parsedDate;
         }
     }
 
     return {
         task,
-        dueDate: dueDate.toISOString().split('T')[0],
+        dueDate: dueDate ? dueDate.toISOString().split('T')[0] : null,
         course,
         details: text,
         priority: lower.includes("urgent") || lower.includes("important") ? "high" : "medium"

@@ -21,7 +21,7 @@ const generateStudyPlanFlow = ai.defineFlow(
         const assignmentsList = assignments.map(a => `- ${a.title} (Course: ${a.course}) - Due: ${a.dueDate}`).join('\n').replace(/[^\S\r\n]+/g, ' ').trim();
 
         const {output} = await buddIEGenerate({
-            model: 'ollama/genesisai-standalone:latest',
+            model: 'ollama/llama3:latest',
             config: {
                 num_ctx: 16384,
                 temperature: 0.1,

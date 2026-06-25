@@ -19,21 +19,22 @@ const parseAssignmentFlow = ai.defineFlow(
     outputSchema: AssignmentSchema,
   },
   async (input: any) => {
-    console.log("GenesisAi: Parsing assignment via Ollama...");
+    console.log("BUDD-IE: Parsing assignment via Ollama...");
     try {
       const cleanedAssignmentText = input.assignmentText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/genesisai-standalone:latest',
+        model: 'ollama/budd-ie:latest',
         config: {
           num_ctx: 16384,
           temperature: 0.1,
         },
         onChunk: () => {},
-        system: `You are GenesisAi-Standalone. Convert natural language into a structured assignment JSON object.
+        system: `You are BUDD-IE. Convert natural language into a structured assignment JSON object.
+        Analyze the input text carefully. If the exact due date is not specified, is ambiguous, or cannot be figured out, set "dueDate" to null.
         Output MUST match this schema:
         {
           "task": string,
-          "dueDate": "YYYY-MM-DD",
+          "dueDate": "YYYY-MM-DD" | null,
           "course": string,
           "details": string,
           "priority": "low" | "medium" | "high"
@@ -42,9 +43,9 @@ const parseAssignmentFlow = ai.defineFlow(
         output: { schema: AssignmentSchema }
       });
 
-      return output || { task: "Unknown Task", dueDate: new Date().toISOString().split('T')[0], course: "General", details: "", priority: "medium" };
+      return output || { task: "Unknown Task", dueDate: null, course: "General", details: "", priority: "medium" };
     } catch (error) {
-      console.error("GenesisAi assignment parsing failed:", error);
+      console.error("BUDD-IE assignment parsing failed:", error);
       throw error;
     }
   }

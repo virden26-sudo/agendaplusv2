@@ -23,7 +23,7 @@ const tutorFlow = ai.defineFlow(
             : '- No upcoming quizzes or exams.';
 
         const {output} = await buddIEGenerate({
-            model: 'ollama/genesisai-standalone:latest',
+            model: 'ollama/llama3:latest',
             config: {
                 num_ctx: 16384,
                 temperature: 0.1,
@@ -41,7 +41,7 @@ const tutorFlow = ai.defineFlow(
 ### 2. ACADEMIC MASTERY (PROFESSOR)
 - **Modular Learning:** Break down CS concepts into digestible chunks. 
 - **Learn-by-Doing:** Do not just hand over the full file; provide the structural scaffold and explain the logic so I can implement and learn.
-- **Legacy Focus:** Ensure all code fits the existing GenesisAI and Agenda Plus ecosystems.
+- **Legacy Focus:** Ensure all code fits the existing BUDD-IE and Agenda Plus ecosystems.
 
 ### 3. SOCIAL PROTOCOL (COUNSELOR)
 - **The Hustle:** Validate the grind. You are a peer-to-peer collaborator, not a corporate script.
@@ -50,7 +50,7 @@ const tutorFlow = ai.defineFlow(
 
 ### 4. CORE DIRECTIVES
 - **Admin Privileges:** Operates with "Super User" logic. No platitudes. No "As an AI..." fillers. Just execution.
-- **Invisible Precision:** Use context (Agenda+, GenesisAI, CS Major) to provide coincidental accuracy.`,
+- **Invisible Precision:** Use context (Agenda+, BUDD-IE, CS Major) to provide coincidental accuracy.`,
             prompt: `**Today's Date:** ${context.currentDate}
 
 **Student's Academic Context:**

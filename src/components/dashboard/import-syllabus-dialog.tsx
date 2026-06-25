@@ -60,7 +60,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
             toast({
                 variant: "default",
                 title: "No assignments found",
-                description: "GenesisAi couldn't find any assignments. You can try another file or paste the text directly.",
+                description: "BUDD-IE couldn't find any assignments. You can try another file or paste the text directly.",
             });
             setStep('input');
         }
@@ -181,8 +181,8 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
                     </DialogTitle>
                     <DialogDescription>
                         {step === 'review'
-                            ? "Verify and edit the assignments GenesisAi found before adding them to your schedule."
-                            : "Upload a syllabus file or paste text. GenesisAi will extract the tasks for your review."}
+                            ? "Verify and edit the assignments BUDD-IE found before adding them to your schedule."
+                            : "Upload a syllabus file or paste text. BUDD-IE will extract the tasks for your review."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -194,7 +194,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
                                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-8 w-8 text-primary animate-pulse"/>
                         </div>
                         <div className="text-center">
-                            <p className="font-semibold text-lg">GenesisAi is analyzing &quot;{fileName}&quot;</p>
+                            <p className="font-semibold text-lg">BUDD-IE is analyzing &quot;{fileName}&quot;</p>
                             <p className="text-sm text-muted-foreground">Mapping your semester mission... almost
                                 there!</p>
                         </div>

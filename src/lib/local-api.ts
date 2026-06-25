@@ -7,6 +7,7 @@ import {
 import { parsePortalDataOnDevice } from "@/lib/portal-sync-client";
 import type { TutorInput, TutorOutput } from "@/ai/schemas";
 import type { ParsedAssignment } from "@/ai/schemas/assignment";
+import { apiFetch } from "@/lib/api-config";
 
 /** All Agenda+ features run on-device — no backend URL or PC required. */
 
@@ -18,7 +19,27 @@ export function parsePortal(input: { portalText?: string; currentDate?: string }
     return parsePortalDataOnDevice(text, input.currentDate);
 }
 
-export function parseAssignmentText(assignmentText: string): ParsedAssignment {
+export async function parseAssignmentText(assignmentText: string): Promise<ParsedAssignment> {
+    try {
+        const response = await apiFetch("/api/parse-assignment", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                assignmentText,
+                currentDate: new Date().toLocaleDateString("en-CA"),
+            }),
+        });
+        if (response && response.ok) {
+            const data = await response.json();
+            if (data && !data.error) {
+                return data;
+            }
+        }
+    } catch (e) {
+        console.warn("AI parsing failed or unreachable, falling back to heuristics:", e);
+    }
     return parseAssignmentHeuristically(assignmentText);
 }
 

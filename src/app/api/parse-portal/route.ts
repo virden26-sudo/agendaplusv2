@@ -7,7 +7,11 @@ export const OPTIONS = corsOptions;
 export async function POST(request: NextRequest) {
   console.log('API: /api/parse-portal/ POST request received');
   try {
-    const body = await request.json();
+    const text = await request.text();
+    if (!text || text.trim() === "") {
+      return withCors(NextResponse.json({ error: "Empty request body" }, { status: 400 }));
+    }
+    const body = JSON.parse(text);
     const result = await parsePortalData(body);
     return withCors(NextResponse.json(result));
   } catch (error: unknown) {
@@ -17,9 +21,11 @@ export async function POST(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : 'Failed to parse portal data';
+    const isSessionError = message.includes("expired") || message.includes("login") || message.includes("auth");
+    const status = isSessionError ? 401 : 500;
     return withCors(NextResponse.json(
       { error: message },
-      { status: 500 }
+      { status }
     ));
   }
 }

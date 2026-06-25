@@ -101,7 +101,7 @@ function extractD2LAssignmentRecords(
   return records;
 }
 
-function extractD2LDiscussionRecords(blob: string): { title: string; dueDate: string | null }[] {
+function _extractD2LDiscussionRecords(blob: string): { title: string; dueDate: string | null }[] {
   const records: { title: string; dueDate: string | null }[] = [];
   const seen = new Set<string>();
 
@@ -482,8 +482,20 @@ export function parsePortalTextHeuristically(
   const discussionSection =
     portalText.split(/===\s*SECTION:\s*Discussions\s*===/i)[1]?.split(/===\s*SECTION:/i)[0] ||
     "";
-  for (const record of extractD2LDiscussionRecords(discussionSection)) {
-    addDiscussion(record.title, record.dueDate, currentCourse);
+  const discussionLines = discussionSection
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  for (let i = 0; i < discussionLines.length; i++) {
+    const line = discussionLines[i];
+    if (isIrrelevantPortalLine(line) || isD2LTableNoise(line)) continue;
+
+    const cleaned = normalizeAssignmentTitle(line);
+    if (!isValidDiscussionTitle(cleaned)) continue;
+
+    const dueDate = findDueDateNearLines(discussionLines, i, anchorYear);
+    addDiscussion(cleaned, dueDate, currentCourse);
   }
 
   // Line-by-line within Assignments section only.

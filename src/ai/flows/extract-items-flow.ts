@@ -12,7 +12,7 @@ const extractItemsFlow = ai.defineFlow(
         const currentDate = new Date().toLocaleDateString('en-CA');
         const cleanedSyllabusText = syllabusText.replace(/[^\S\r\n]+/g, ' ').trim();
         const {output} = await buddIEGenerate({
-            model: 'ollama/genesisai-standalone:latest',
+            model: 'ollama/budd-ie:latest',
             config: {
                 num_ctx: 16384,
                 temperature: 0.1,

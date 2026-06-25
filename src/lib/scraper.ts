@@ -36,6 +36,7 @@ const isNavigationError = (error: unknown) => {
 export type ScrapePortalOptions = {
     /** When true, reuse the saved portal profile without opening a visible login window. */
     sessionReady?: boolean;
+    mode?: "startup" | "manual" | "background";
 };
 
 async function pageLooksLoggedIn(page: any): Promise<boolean> {
@@ -170,7 +171,7 @@ async function safeGoto(page: any, url: string, timeout = 45000) {
                 throw error;
             }
 
-            console.warn(`GenesisAI Scraper: Navigation retry ${attempt}/3 for ${url}`);
+            console.warn(`BUDD-IE Scraper: Navigation retry ${attempt}/3 for ${url}`);
             await sleep(1000);
         }
     }
@@ -202,7 +203,7 @@ async function enrichStructuredAssignmentDueDates(page: any, structuredBlock: st
     const anchorYear = anchor.getFullYear();
     const limit = Math.min(pending.length, 15);
 
-    console.log(`GenesisAI Scraper: Resolving due dates from ${limit} assignment detail pages...`);
+    console.log(`BUDD-IE Scraper: Resolving due dates from ${limit} assignment detail pages...`);
 
     for (const item of pending.slice(0, limit)) {
         if (!item.href) continue;
@@ -252,10 +253,10 @@ async function enrichStructuredAssignmentDueDates(page: any, structuredBlock: st
 
             if (dueDate && isReasonableDueDate(dueDate, anchor)) {
                 item.dueDate = dueDate;
-                console.log(`GenesisAI Scraper: Found due date for "${item.task}": ${dueDate}`);
+                console.log(`BUDD-IE Scraper: Found due date for "${item.task}": ${dueDate}`);
             }
         } catch (error) {
-            console.warn(`GenesisAI Scraper: Could not read due date from ${item.href}`, error);
+            console.warn(`BUDD-IE Scraper: Could not read due date from ${item.href}`, error);
         }
     }
 
@@ -295,7 +296,7 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
                     const iso = dt.match(/(\\d{4}-\\d{2}-\\d{2})/);
                     if (iso) return iso[1];
                 }
-                const labeled = (node.textContent || "").match(/(?:due|end)\\s*date\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2}[^\\n,]{0,20}(?:\\d{4})?)/i);
+                const labeled = (node.textContent || "").match(/(?:due|end|closes|deadline)(?:\\s*date)?\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2}[^\\n,]{0,20}(?:\\d{4})?)/i);
                 if (labeled) return parseDue(labeled[1]);
                 return null;
             };
@@ -415,11 +416,30 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
                 return { section, course, items };
             }
 
-            if (isDiscussions) {
-                document.querySelectorAll("a[href*='discussions'], a[href*='topic']").forEach((link) => {
+            if (isQuizzes) {
+                document.querySelectorAll("a[href*='quiz'], a[href*='quizzing'], a[href*='exam']").forEach((link) => {
                     const task = normalize(link.textContent || "");
                     if (!acceptTitle(task)) return;
-                    pushItem(task, "", "", link.href || null);
+                    const row = link.closest("tr, li, .d2l-datalist-item, d2l-list-item");
+                    let dueText = "";
+                    if (row) {
+                        dueText = parseDueFromNode(row) || "";
+                    }
+                    pushItem(task, dueText, "", link.href || null);
+                });
+                return { section, course, items };
+            }
+
+            if (isDiscussions) {
+                document.querySelectorAll("a[href*='discussion'], a[href*='topic']").forEach((link) => {
+                    const task = normalize(link.textContent || "");
+                    if (!acceptTitle(task)) return;
+                    const row = link.closest("tr, li, .d2l-datalist-item, d2l-list-item");
+                    let dueText = "";
+                    if (row) {
+                        dueText = parseDueFromNode(row) || "";
+                    }
+                    pushItem(task, dueText, "", link.href || null);
                 });
                 return { section, course, items };
             }
@@ -440,7 +460,7 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
 
         return `\n\n=== STRUCTURED: ${sectionName} ===\n${JSON.stringify(payload)}\n`;
     } catch (error) {
-        console.warn(`GenesisAI Scraper: Structured ${sectionName} extraction failed`, error);
+        console.warn(`BUDD-IE Scraper: Structured ${sectionName} extraction failed`, error);
         return "";
     }
 }
@@ -484,12 +504,12 @@ export async function scrapePortal(
     pass?: string,
     options?: ScrapePortalOptions
 ): Promise<string> {
-    console.log(`GenesisAI Scraper: Starting mission for ${url}`, {
+    console.log(`BUDD-IE Scraper: Starting mission for ${url}`, {
         sessionReady: Boolean(options?.sessionReady),
     });
 
     if (typeof window !== 'undefined') {
-        console.warn("GenesisAI Agent: Direct scraping is not supported in the browser. Call the /api/scrape endpoint.");
+        console.warn("BUDD-IE Agent: Direct scraping is not supported in the browser. Call the /api/scrape endpoint.");
         return `[BROWSER_SCRAPE_SIMULATION] Simulated content for ${url}.`;
     }
 
@@ -504,7 +524,7 @@ export async function scrapePortal(
             }
         }).catch((err) => {
             // Ensure the chain continues even on failure
-            console.error("GenesisAI Scraper: Mutex chain error:", err);
+            console.error("BUDD-IE Scraper: Mutex chain error:", err);
             reject(err);
         });
     });
@@ -542,34 +562,43 @@ async function runScrapingMission(
 
     const executablePath = getExecutablePath();
     const sessionReady = Boolean(options?.sessionReady);
+    const mode = options?.mode;
+    const isSilent = mode === "startup" || mode === "background";
     const browserAlreadyRunning = Boolean(sharedBrowser?.isConnected());
 
     // One browser for the whole app session. Visible window only for first-time login.
-    const launchVisible = !sessionReady && !browserAlreadyRunning;
+    const launchVisible = !isSilent && !sessionReady && !browserAlreadyRunning;
     let browser = await getSharedBrowser(puppeteer, executablePath, fs, launchVisible);
     let page = await getOrCreatePortalPage(browser, url);
 
     try {
         page.setDefaultNavigationTimeout(60000);
-        console.log(`GenesisAI Scraper: Navigating to ${url} (reuse tab: ${browserAlreadyRunning})...`);
+        console.log(`BUDD-IE Scraper: Navigating to ${url} (reuse tab: ${browserAlreadyRunning})...`);
         await safeGoto(page, url);
 
         const loggedIn = await pageLooksLoggedIn(page);
 
-        if (!loggedIn && !sharedBrowserVisible) {
-            console.log("GenesisAI Scraper: Login required. Opening visible browser once.");
-            await browser.close().catch(() => {});
-            sharedBrowser = null;
-            sharedBrowserPromise = null;
+        if (!loggedIn) {
+            if (isSilent) {
+                console.log("BUDD-IE Scraper: Session expired in silent mode. Failing fast.");
+                throw new Error("Portal session has expired. Please open the portal to log in again.");
+            }
 
-            browser = await getSharedBrowser(puppeteer, executablePath, fs, true);
-            page = await getOrCreatePortalPage(browser, url);
-            page.setDefaultNavigationTimeout(60000);
-            await safeGoto(page, url);
+            if (!sharedBrowserVisible) {
+                console.log("BUDD-IE Scraper: Login required. Opening visible browser once.");
+                await browser.close().catch(() => {});
+                sharedBrowser = null;
+                sharedBrowserPromise = null;
+
+                browser = await getSharedBrowser(puppeteer, executablePath, fs, true);
+                page = await getOrCreatePortalPage(browser, url);
+                page.setDefaultNavigationTimeout(60000);
+                await safeGoto(page, url);
+            }
         }
 
         if (user && pass) {
-            console.log("GenesisAI Scraper: Attempting automatic login...");
+            console.log("BUDD-IE Scraper: Attempting automatic login...");
             try {
                 const userSelectors = ['input[type="text"]', 'input[type="email"]', 'input[name="username"]', '#username', '#userNameInput', '[autocomplete="username"]'];
                 const passSelectors = ['input[type="password"]', 'input[name="password"]', '#password', '#passwordInput', '[autocomplete="current-password"]'];
@@ -630,16 +659,20 @@ async function runScrapingMission(
                     }
                 }
             } catch (loginErr) {
-                console.log("GenesisAI Scraper: Automatic login issues.", loginErr);
+                console.log("BUDD-IE Scraper: Automatic login issues.", loginErr);
             }
         }
 
         let readyAfterNav = await pageLooksLoggedIn(page);
         if (!readyAfterNav) {
+            if (isSilent) {
+                console.log("BUDD-IE Scraper: Session expired after navigation in silent mode. Failing fast.");
+                throw new Error("Portal session has expired. Please open the portal to log in again.");
+            }
             await handleManualIntervention(page);
             readyAfterNav = await pageLooksLoggedIn(page);
         } else {
-            console.log("GenesisAI Scraper: Reusing saved portal session (no login window).");
+            console.log("BUDD-IE Scraper: Reusing saved portal session (no login window).");
             await sleep(1500);
         }
 
@@ -662,7 +695,7 @@ async function runScrapingMission(
             activeUrl.match(/\/le\/content\/(\d+)\//);
 
         if (activeUrl.includes('d2l') && d2lOuMatch?.[1]) {
-            console.log("GenesisAI Scraper: D2L detected.");
+            console.log("BUDD-IE Scraper: D2L detected.");
             try {
                 const origin = new URL(activeUrl).origin;
                 const ou = d2lOuMatch[1];
@@ -704,7 +737,7 @@ async function runScrapingMission(
                             }).catch(() => false);
 
                             if (isErrorPage) {
-                                console.warn(`GenesisAI Scraper: Skipping ${target.name} due to Page Not Found or Access Denied on D2L.`);
+                                console.warn(`BUDD-IE Scraper: Skipping ${target.name} due to Page Not Found or Access Denied on D2L.`);
                                 continue;
                             }
 
@@ -713,13 +746,13 @@ async function runScrapingMission(
                                 structured = await enrichStructuredAssignmentDueDates(activePage, structured);
                             }
                             const pageContent = await extractVisibleText(activePage);
-                            console.log(`GenesisAI Scraper: ${target.name} extracted ${pageContent.length} characters (${structured ? "structured" : "text only"}).`);
+                            console.log(`BUDD-IE Scraper: ${target.name} extracted ${pageContent.length} characters (${structured ? "structured" : "text only"}).`);
                             aggregatedContent += structured + `\n\n=== SECTION: ${target.name} ===\n\n${pageContent}`;
                         } catch (err) {
                             console.warn(`Failed to extract ${target.name}`, err);
                         }
                     }
-                    console.log(`GenesisAI Scraper: D2L aggregation extracted ${aggregatedContent.length} characters.`);
+                    console.log(`BUDD-IE Scraper: D2L aggregation extracted ${aggregatedContent.length} characters.`);
 
                     if (aggregatedContent.trim().length > 500) {
                         return aggregatedContent;
@@ -796,7 +829,7 @@ async function hideBrowserAfterLogin(
 
     const stable = await getStablePage(browser, page);
     const resumeUrl = stable?.url() || page.url();
-    console.log("GenesisAI Scraper: Login complete — hiding sign-in browser.");
+    console.log("BUDD-IE Scraper: Login complete — hiding sign-in browser.");
 
     await browser.close().catch(() => {});
     sharedBrowser = null;
@@ -827,7 +860,7 @@ async function getSharedBrowser(puppeteer: any, executablePath: string, fs: type
             if (!fs.existsSync(SHARED_BROWSER_PROFILE_DIR)) {
                 fs.mkdirSync(SHARED_BROWSER_PROFILE_DIR, {recursive: true});
             }
-            console.log(`GenesisAI Scraper: Launching browser (visible: ${visible})`);
+            console.log(`BUDD-IE Scraper: Launching browser (visible: ${visible})`);
             const createLaunchOptions = (userDataDir: string, forceVisible = visible) => ({
                 executablePath,
                 headless: forceVisible ? false : "new",
@@ -851,7 +884,7 @@ async function getSharedBrowser(puppeteer: any, executablePath: string, fs: type
                     throw error;
                 }
 
-                console.warn("GenesisAI Scraper: Browser profile is locked. Stopping stale profile browser and retrying once.");
+                console.warn("BUDD-IE Scraper: Browser profile is locked. Stopping stale profile browser and retrying once.");
                 await stopBrowsersUsingProfile(SHARED_BROWSER_PROFILE_DIR);
                 try {
                     browser = await puppeteer.launch(launchOptions);
@@ -866,7 +899,7 @@ async function getSharedBrowser(puppeteer: any, executablePath: string, fs: type
                         fs.mkdirSync(recoveryProfileDir, {recursive: true});
                     }
 
-                    console.warn(`GenesisAI Scraper: Main browser profile is still locked. Using recovery profile at ${recoveryProfileDir}.`);
+                    console.warn(`BUDD-IE Scraper: Main browser profile is still locked. Using recovery profile at ${recoveryProfileDir}.`);
                     browser = await puppeteer.launch(createLaunchOptions(recoveryProfileDir, true));
                     sharedBrowserVisible = true;
                 }
@@ -897,15 +930,15 @@ async function handleManualIntervention(page: unknown) {
     const injectTracker = async () => {
         try {
             await (page as any).evaluate(`
-        if (!window.genesisaiMonitorInitialized) {
-          window.genesisaiLastActivity = Date.now();
+        if (!window.BUDD-IEMonitorInitialized) {
+          window.BUDD-IELastActivity = Date.now();
           const updateActivity = () => {
-            window.genesisaiLastActivity = Date.now();
+            window.BUDD-IELastActivity = Date.now();
           };
           ["mousemove", "keydown", "mousedown", "scroll", "input", "click"].forEach((eventName) =>
             window.addEventListener(eventName, updateActivity)
           );
-          window.genesisaiMonitorInitialized = true;
+          window.BUDD-IEMonitorInitialized = true;
         }
       `);
             return true;
@@ -982,7 +1015,7 @@ async function handleManualIntervention(page: unknown) {
                     );
 
                     const pageStatus = await (page as any).evaluate(`(() => ({
-            lastActivity: window.genesisaiLastActivity || Date.now(),
+            lastActivity: window.BUDD-IELastActivity || Date.now(),
             url: window.location.href,
           }))()`) as { lastActivity: number; url: string };
 
@@ -993,7 +1026,7 @@ async function handleManualIntervention(page: unknown) {
                     const inactiveTime = Date.now() - pageStatus.lastActivity;
                     const stillInAuthFlow = isOktaUrl(pageStatus.url);
 
-                    console.log("GenesisAI Scraper: monitor snapshot", {
+                    console.log("BUDD-IE Scraper: monitor snapshot", {
                         url: pageStatus.url,
                         frames: frameSnapshots.length,
                         totalTextLength,
@@ -1017,7 +1050,7 @@ async function handleManualIntervention(page: unknown) {
                         const reason = looksLikePortal && hasEnoughContent 
                             ? "Portal detected with content." 
                             : "Portal detected but content is minimal (timeout).";
-                        console.log(`GenesisAI Scraper: Condition met for closing. ${reason}`);
+                        console.log(`BUDD-IE Scraper: Condition met for closing. ${reason}`);
                         cancelled = true;
                         resolve();
                         return;
@@ -1055,7 +1088,7 @@ async function handleManualIntervention(page: unknown) {
 
 export async function closeSharedBrowser() {
     if (sharedBrowser) {
-        console.log("GenesisAI Scraper: Closing shared browser...");
+        console.log("BUDD-IE Scraper: Closing shared browser...");
         await sharedBrowser.close().catch(() => {});
         sharedBrowser = null;
         sharedBrowserPromise = null;
@@ -1076,3 +1109,4 @@ if (typeof process !== "undefined") {
     process.on("SIGINT", cleanup);
     process.on("SIGTERM", cleanup);
 }
+

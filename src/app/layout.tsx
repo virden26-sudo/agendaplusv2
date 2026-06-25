@@ -28,7 +28,7 @@ const dancingScript = Dancing_Script({
 
 export const metadata: Metadata = {
   title: 'Agenda+ | Your Academic Sidekick',
-  description: 'GenesisAi powered student agenda for crushing your semester.',
+  description: 'BUDD-IE powered student agenda for crushing your semester.',
   icons: {
     icon: '/favicon.ico',
     shortcut: '/favicon.ico',

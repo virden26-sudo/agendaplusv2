@@ -23,7 +23,7 @@ const JUNK_TITLE_PATTERNS = [
   /^oh,?\s*there you are/i,
 ];
 
-const VALID_TITLE_PATTERNS = [
+const _VALID_TITLE_PATTERNS = [
   /(?:week\s*\d+\s*)?(?:assignment|quiz)\s*\d+\s*:\s*.+/i,
 ];
 

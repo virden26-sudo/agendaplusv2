@@ -22,16 +22,16 @@ const parseSyllabusFlow = ai.defineFlow(
     outputSchema: ParseSyllabusOutputSchema,
   },
   async (input: any) => {
-    console.log("GenesisAi: Analyzing syllabus file via Ollama...");
+    console.log("BUDD-IE: Analyzing syllabus file via Ollama...");
     try {
       const { output } = await ai.generate({
-        model: 'ollama/genesisai-standalone:latest',
+        model: 'ollama/budd-ie:latest',
         config: {
           num_ctx: 16384,
           temperature: 0.1,
         },
         onChunk: () => {},
-        system: `You are GenesisAi-Standalone. Extract all assignments from the syllabus document.
+        system: `You are BUDD-IE. Extract all assignments from the syllabus document.
         Output MUST be valid JSON with an 'assignments' array matching the schema.`,
         prompt: `Current Date: ${input.currentDate || new Date().toLocaleDateString()}. Extract assignments from this document.`,
         messages: [
@@ -48,7 +48,7 @@ const parseSyllabusFlow = ai.defineFlow(
 
       return output || { assignments: [] };
     } catch (error) {
-      console.error("GenesisAi syllabus parsing failed:", error);
+      console.error("BUDD-IE syllabus parsing failed:", error);
       return { assignments: [] };
     }
   }

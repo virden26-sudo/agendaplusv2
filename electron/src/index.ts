@@ -136,7 +136,7 @@ const rememberProjectRoot = (rootPath: string) => {
     fs.mkdirSync(configDir, { recursive: true });
     fs.writeFileSync(path.join(configDir, 'project-root.txt'), rootPath, 'utf8');
   } catch (error) {
-    console.warn('GenesisAi: Could not persist project root path.', error);
+    console.warn('BUDD-IE: Could not persist project root path.', error);
   }
 };
 
@@ -185,7 +185,7 @@ const pickNextScript = (rootPath: string) => {
       }
     }
   } catch (err) {
-    console.error('GenesisAi: Error checking next.config.mjs', err);
+    console.error('BUDD-IE: Error checking next.config.mjs', err);
   }
 
   // next start (RunIt) fails with output: export.
@@ -195,7 +195,7 @@ const pickNextScript = (rootPath: string) => {
 
 // Function to start the servers (ollama and next.js)
 const startServers = async () => {
-  console.log('GenesisAi: Starting sidecar services...');
+  console.log('BUDD-IE: Starting sidecar services...');
   extendPathForNode();
 
   const rootPath = findProjectRoot();
@@ -208,7 +208,7 @@ const startServers = async () => {
   // Start Ollama
   try {
     if (await isPortOpen('127.0.0.1', 11434)) {
-      console.log('GenesisAi: Ollama is already running at http://127.0.0.1:11434.');
+      console.log('BUDD-IE: Ollama is already running at http://127.0.0.1:11434.');
     } else {
       const ollamaEnv = { ...process.env, OLLAMA_VULKAN: '1' };
       serverProcess = spawn('ollama', ['serve'], { env: ollamaEnv, shell: true });
@@ -216,10 +216,10 @@ const startServers = async () => {
       prefixProcessOutput(serverProcess.stdout, '[Ollama]');
       prefixProcessOutput(serverProcess.stderr, '[Ollama]');
       serverProcess.on('exit', (code: any) => {
-        console.log(`GenesisAi: Ollama process exited with code ${code}`);
+        console.log(`BUDD-IE: Ollama process exited with code ${code}`);
       });
       serverProcess.on('error', (err: any) => {
-        console.error('GenesisAi: Ollama process error:', err);
+        console.error('BUDD-IE: Ollama process error:', err);
       });
     }
   } catch (err) {
@@ -230,21 +230,21 @@ const startServers = async () => {
   try {
     if (!rootPath) {
       console.error(
-        'GenesisAi: Could not find Agenda+ project root. Clone/build the repo, run "npm run dev" from that folder, or create %APPDATA%\\Agenda+\\project-root.txt with the full path to AgendaPlusv2.0.'
+        'BUDD-IE: Could not find Agenda+ project root. Clone/build the repo, run "npm run dev" from that folder, or create %APPDATA%\\Agenda+\\project-root.txt with the full path to AgendaPlusv2.0.'
       );
       nextBackendReady = false;
       return;
     }
 
     if (await isPortOpen('127.0.0.1', NEXT_PORT)) {
-      console.log(`GenesisAi: Next.js API already listening on http://127.0.0.1:${NEXT_PORT}`);
+      console.log(`BUDD-IE: Next.js API already listening on http://127.0.0.1:${NEXT_PORT}`);
       nextBackendReady = true;
       return;
     }
 
     const nextScript = pickNextScript(rootPath);
-    console.log(`GenesisAi: Spawning Next.js (${nextScript}) from ${rootPath}`);
-    console.log(`GenesisAi: Usable API URLs: ${getLanUrls(NEXT_PORT).join(', ')}`);
+    console.log(`BUDD-IE: Spawning Next.js (${nextScript}) from ${rootPath}`);
+    console.log(`BUDD-IE: Usable API URLs: ${getLanUrls(NEXT_PORT).join(', ')}`);
     nextProcess = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', nextScript], {
       cwd: rootPath,
       shell: true,
@@ -262,20 +262,20 @@ const startServers = async () => {
     prefixProcessOutput(nextProcess.stdout, '[Next.js]', formatNextLine);
     prefixProcessOutput(nextProcess.stderr, '[Next.js]', formatNextLine);
     nextProcess.on('exit', (code: any) => {
-      console.log(`GenesisAi: Next.js process exited with code ${code}`);
+      console.log(`BUDD-IE: Next.js process exited with code ${code}`);
       nextBackendReady = false;
     });
     nextProcess.on('error', (err: any) => {
-      console.error('GenesisAi: Next.js process error:', err);
+      console.error('BUDD-IE: Next.js process error:', err);
       nextBackendReady = false;
     });
 
     nextBackendReady = await waitForPort('127.0.0.1', NEXT_PORT, 120_000);
     if (nextBackendReady) {
-      console.log(`GenesisAi: Next.js API is ready at http://127.0.0.1:${NEXT_PORT}`);
+      console.log(`BUDD-IE: Next.js API is ready at http://127.0.0.1:${NEXT_PORT}`);
     } else {
       console.error(
-        `GenesisAi: Timed out waiting for Next.js on port ${NEXT_PORT}. Run "npm run dev:next" manually from ${rootPath}.`
+        `BUDD-IE: Timed out waiting for Next.js on port ${NEXT_PORT}. Run "npm run dev:next" manually from ${rootPath}.`
       );
     }
   } catch (err) {
@@ -286,7 +286,7 @@ const startServers = async () => {
 
 // Function to stop the servers
 const stopServers = () => {
-  console.log('GenesisAi: Stopping sidecar services...');
+  console.log('BUDD-IE: Stopping sidecar services...');
   
   if (process.platform === 'win32') {
     // Force kill Ollama
@@ -307,7 +307,7 @@ const stopServers = () => {
   
   serverProcess = null;
   nextProcess = null;
-  console.log('GenesisAi: Sidecar services stopped');
+  console.log('BUDD-IE: Sidecar services stopped');
 };
 
 // Define our menu templates (these are optional)
@@ -319,7 +319,7 @@ const appMenuBarMenuTemplate: (MenuItemConstructorOptions | MenuItem)[] = [
 
 // Get Config options from capacitor.config
 const capacitorFileConfig: CapacitorElectronConfig = getCapacitorElectronConfig();
-console.log('GenesisAi: Capacitor Configuration:', JSON.stringify(capacitorFileConfig, null, 2));
+console.log('BUDD-IE: Capacitor Configuration:', JSON.stringify(capacitorFileConfig, null, 2));
 
 // Initialize our app. You can pass menu templates into the app here.
 // const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig);
@@ -351,44 +351,44 @@ if (electronIsDev) {
     // Initialize our app, build windows, and load content.
     await myCapacitorApp.init();
   } catch (error) {
-    console.error('GenesisAi: Critical error during app initialization:', error);
+    console.error('BUDD-IE: Critical error during app initialization:', error);
     app.quit();
   }
 })();
 
 // Handle when all of our windows are close (platforms have their own expectations).
 app.on('window-all-closed', function () {
-  console.log('GenesisAi: window-all-closed event triggered');
+  console.log('BUDD-IE: window-all-closed event triggered');
   // Stop servers before quitting
   stopServers();
   // On OS X it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
   if (process.platform !== 'darwin') {
-    console.log('GenesisAi: Quitting app because window-all-closed');
+    console.log('BUDD-IE: Quitting app because window-all-closed');
     app.quit();
   }
 });
 
 // Handle app quit
 app.on('quit', () => {
-  console.log('GenesisAi: app quit event triggered');
+  console.log('BUDD-IE: app quit event triggered');
   stopServers();
 });
 
 // When the dock icon is clicked.
 app.on('activate', async function () {
-  console.log('GenesisAi: app activate event triggered');
+  console.log('BUDD-IE: app activate event triggered');
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (myCapacitorApp.getMainWindow().isDestroyed()) {
-    console.log('GenesisAi: Re-initializing main window');
+    console.log('BUDD-IE: Re-initializing main window');
     await myCapacitorApp.init();
   }
 });
 
 // IPC handler for logout - stop servers when user logs out
 ipcMain.on('user-logout', () => {
-  console.log('GenesisAi: user-logout IPC received');
+  console.log('BUDD-IE: user-logout IPC received');
   stopServers();
 });
 
@@ -405,3 +405,4 @@ ipcMain.handle('agenda:get-backend-status', async () => {
 });
 
 // Place all ipc or other electron api calls and custom functionality under this line
+

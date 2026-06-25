@@ -15,6 +15,8 @@ const config = [
       }],
       "@typescript-eslint/no-explicit-any": "off",
       "react/no-unescaped-entities": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
     }
   },
   {

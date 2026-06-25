@@ -45,7 +45,7 @@ export function OnboardingDialog({open, onOpenChange}: OnboardingDialogProps) {
                         Welcome to Agenda+
                     </DialogTitle>
                     <DialogDescription>
-                        Let&apos;s get you set up. GenesisAI needs your portal details to start monitoring your academic
+                        Let&apos;s get you set up. BUDD-IE needs your portal details to start monitoring your academic
                         universe.
                     </DialogDescription>
                 </DialogHeader>
@@ -80,7 +80,7 @@ export function OnboardingDialog({open, onOpenChange}: OnboardingDialogProps) {
                         </p>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                        After setup, GenesisAI opens your school portal in a monitored browser and imports assignments automatically — no copying required.
+                        After setup, BUDD-IE opens your school portal in a monitored browser and imports assignments automatically — no copying required.
                     </p>
                 </div>
                 <DialogFooter>
@@ -89,7 +89,7 @@ export function OnboardingDialog({open, onOpenChange}: OnboardingDialogProps) {
                         disabled={!name.trim() || !url.trim()}
                         className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
                     >
-                        Launch GenesisAI
+                        Launch BUDD-IE
                     </Button>
                 </DialogFooter>
             </DialogContent>

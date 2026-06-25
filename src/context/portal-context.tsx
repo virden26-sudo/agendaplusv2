@@ -62,7 +62,7 @@ export function PortalProvider({ children }: { children: ReactNode }) {
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [loading, _setLoading] = useState(false);
+  const [_loading, _setLoading] = useState(false);
 
   useEffect(() => {
     const stored = loadStoredPortalData();

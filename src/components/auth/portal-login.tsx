@@ -81,7 +81,7 @@ export function PortalLogin({ portalUrl, isSyncing, onComplete }: PortalLoginPro
 
         <CardHeader className="space-y-1 pt-10 text-center">
           <CardTitle className="text-2xl font-header text-gradient">
-            {isSyncing ? "GenesisAi is Syncing..." : "Student Portal Login"}
+            {isSyncing ? "BUDD-IE is Syncing..." : "Student Portal Login"}
           </CardTitle>
           <CardDescription>
             {isSyncing 
@@ -124,7 +124,7 @@ export function PortalLogin({ portalUrl, isSyncing, onComplete }: PortalLoginPro
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/10 space-y-2">
                 <div className="flex items-center justify-between text-[10px] uppercase tracking-wider">
                     <span className="text-muted-foreground font-bold flex items-center gap-1">
-                        <Sparkles className="h-3 w-3 text-primary" /> GenesisAi: Waiting for Inactivity
+                        <Sparkles className="h-3 w-3 text-primary" /> BUDD-IE: Waiting for Inactivity
                     </span>
                     <span className="font-bold text-primary tabular-nums">{countdown}s</span>
                 </div>
@@ -158,7 +158,7 @@ export function PortalLogin({ portalUrl, isSyncing, onComplete }: PortalLoginPro
             {isSyncing ? "Processing Data..." : "Connect & Sync Now"}
           </Button>
           <p className="text-[10px] text-center text-muted-foreground italic px-4">
-          GenesisAi uses your credentials only for this session&apos;s autonomous sync. They are never stored on any server.
+          BUDD-IE uses your credentials only for this session&apos;s autonomous sync. They are never stored on any server.
           </p>
         </CardFooter>
       </Card>

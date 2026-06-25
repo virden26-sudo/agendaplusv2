@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAssignments } from "@/context/assignments-context";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,17 +8,138 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { CircleOff } from "lucide-react";
+import { CircleOff, Pencil } from "lucide-react";
 import type { Assignment } from "@/lib/types";
 import { getPriorityBadgeVariant, getDueDateInfo } from "@/lib/assignment-utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+interface EditAssignmentDialogProps {
+    assignment: Assignment;
+    onUpdate: (id: string, updatedFields: Partial<Omit<Assignment, 'id'>>) => void;
+}
+
+export function EditAssignmentDialog({ assignment, onUpdate }: EditAssignmentDialogProps) {
+    const [open, setOpen] = useState(false);
+    const [title, setTitle] = useState(assignment.title);
+    const [course, setCourse] = useState(assignment.course);
+    const [dueDate, setDueDate] = useState(
+        assignment.dueDate instanceof Date && !isNaN(assignment.dueDate.getTime())
+            ? assignment.dueDate.toISOString().split("T")[0]
+            : new Date().toISOString().split("T")[0]
+    );
+    const [priority, setPriority] = useState<Assignment['priority']>(assignment.priority);
+    const [details, setDetails] = useState(assignment.details || "");
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onUpdate(assignment.id, {
+            title: title.trim(),
+            course: course.trim(),
+            dueDate: new Date(dueDate),
+            priority,
+            details: details.trim() || undefined,
+        });
+        setOpen(false);
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 mt-2">
+                    <Pencil className="size-3.5" />
+                    Edit Assignment
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <DialogHeader>
+                        <DialogTitle>Edit Assignment</DialogTitle>
+                        <DialogDescription>
+                            Make adjustments to your assignment details here.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2">
+                        <div className="space-y-1">
+                            <Label htmlFor="title">Assignment Title</Label>
+                            <Input
+                                id="title"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="course">Course</Label>
+                            <Input
+                                id="course"
+                                value={course}
+                                onChange={(e) => setCourse(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="dueDate">Due Date</Label>
+                                <Input
+                                    id="dueDate"
+                                    type="date"
+                                    value={dueDate}
+                                    onChange={(e) => setDueDate(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="priority">Priority</Label>
+                                <Select
+                                    value={priority}
+                                    onValueChange={(val: Assignment['priority']) => setPriority(val)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Priority" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="low">Low</SelectItem>
+                                        <SelectItem value="medium">Medium</SelectItem>
+                                        <SelectItem value="high">High</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <Label htmlFor="details">Details / Notes</Label>
+                            <Textarea
+                                id="details"
+                                value={details}
+                                onChange={(e) => setDetails(e.target.value)}
+                                placeholder="Add notes or requirements..."
+                                className="min-h-[80px]"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit">Save changes</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 interface AssignmentItemProps {
     assignment: Assignment;
     toggleAssignment: (id: string) => void;
+    updateAssignment: (id: string, updatedFields: Partial<Omit<Assignment, 'id'>>) => void;
 }
 
-const AssignmentItem = ({ assignment, toggleAssignment }: AssignmentItemProps) => {
+const AssignmentItem = ({ assignment, toggleAssignment, updateAssignment }: AssignmentItemProps) => {
     const dueDateInfo = getDueDateInfo(assignment.dueDate);
     return (
          <AccordionItem value={assignment.id}>
@@ -39,31 +159,45 @@ const AssignmentItem = ({ assignment, toggleAssignment }: AssignmentItemProps) =
                     </div>
                     <div className="text-right mx-4 shrink-0">
                          <p className={cn("text-sm font-medium", dueDateInfo.className)}>{dueDateInfo.text}</p>
-                         <p className="text-xs text-muted-foreground">{format(assignment.dueDate, "MMM d, yyyy")}</p>
+                         <p className="text-xs text-muted-foreground">
+                            {assignment.dueDate instanceof Date && !isNaN(assignment.dueDate.getTime())
+                                ? format(assignment.dueDate, "MMM d, yyyy")
+                                : "No due date"}
+                         </p>
                     </div>
                     <Badge variant={getPriorityBadgeVariant(assignment.priority)} className="capitalize">{assignment.priority}</Badge>
                 </AccordionTrigger>
             </div>
             <AccordionContent>
-               <div className="prose prose-sm dark:prose-invert text-muted-foreground pl-10 pb-4">
+               <div className="prose prose-sm dark:prose-invert text-muted-foreground pl-10 pb-4 flex flex-col items-start gap-2">
                     {assignment.details ? (
-                        <p>{assignment.details}</p>
+                        <p className="whitespace-pre-wrap">{assignment.details}</p>
                     ) : (
-                        <p>No additional details provided for this assignment.</p>
+                        <p className="italic">No additional details provided for this assignment.</p>
                     )}
+                    <EditAssignmentDialog assignment={assignment} onUpdate={updateAssignment} />
                 </div>
             </AccordionContent>
-        </AccordionItem>
-    )
+         </AccordionItem>
+    );
 };
 
-const AssignmentsAccordion = ({ assignments, toggleAssignment }: { assignments: Assignment[], toggleAssignment: (id: string) => void }) => (
+const AssignmentsAccordion = ({ 
+    assignments, 
+    toggleAssignment, 
+    updateAssignment 
+}: { 
+    assignments: Assignment[]; 
+    toggleAssignment: (id: string) => void;
+    updateAssignment: (id: string, updatedFields: Partial<Omit<Assignment, 'id'>>) => void;
+}) => (
    <Accordion type="multiple" className="w-full">
         {assignments.map(assignment => (
             <AssignmentItem 
                 key={assignment.id} 
                 assignment={assignment} 
                 toggleAssignment={toggleAssignment}
+                updateAssignment={updateAssignment}
             />
         ))}
     </Accordion>
@@ -88,7 +222,7 @@ function groupByCourse(items: Assignment[]) {
 }
 
 export function AssignmentsList() {
-    const { assignments, toggleAssignment, loading } = useAssignments();
+    const { assignments, toggleAssignment, updateAssignment, loading } = useAssignments();
 
     const upcomingAssignments = assignments.filter(a => !a.completed).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
     const completedAssignments = assignments.filter(a => a.completed).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
@@ -96,7 +230,7 @@ export function AssignmentsList() {
     const completedByCourse = useMemo(() => groupByCourse(completedAssignments), [completedAssignments]);
 
     if (loading) {
-        return <div>Loading assignments...</div>
+        return <div>Loading assignments...</div>;
     }
 
     return (
@@ -115,6 +249,7 @@ export function AssignmentsList() {
                                     <AssignmentsAccordion
                                         assignments={courseAssignments}
                                         toggleAssignment={toggleAssignment}
+                                        updateAssignment={updateAssignment}
                                     />
                                 </div>
                             ))}
@@ -139,6 +274,7 @@ export function AssignmentsList() {
                                     <AssignmentsAccordion
                                         assignments={courseAssignments}
                                         toggleAssignment={toggleAssignment}
+                                        updateAssignment={updateAssignment}
                                     />
                                 </div>
                             ))}

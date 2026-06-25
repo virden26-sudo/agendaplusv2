@@ -197,7 +197,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 status = "Extracting assignments, quizzes, and grades...";
             } else if (elapsed < 32) {
                 progress = 75 + ((elapsed - 22) / 10) * 15;
-                status = "GenesisAI is resolving due dates and processing data...";
+                status = "BUDD-IE is resolving due dates and processing data...";
             } else {
                 const overTime = elapsed - 32;
                 progress = 90 + (1 - Math.exp(-overTime / 15)) * 8;
@@ -434,7 +434,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             // Only throw error if we actually reached the server and it returned nothing
             if (imported.total === 0 && !(result as any).offline) {
                 throw new Error(
-                    "GenesisAI scanned your portal but could not import assignments. Open Assignments in D2L, then Rescan."
+                    "BUDD-IE scanned your portal but could not import assignments. Open Assignments in D2L, then Rescan."
                 );
             }
 
@@ -448,7 +448,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     imported.announcements ? `${imported.announcements} announcement${imported.announcements === 1 ? "" : "s"}` : null,
                 ].filter(Boolean);
                 toast({
-                    title: "GenesisAI: Data Synchronized",
+                    title: "BUDD-IE: Data Synchronized",
                     description: parts.length ? `Imported ${parts.join(", ")}.` : `Imported ${imported.total} items from your portal.`,
                 });
             }
@@ -817,7 +817,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         <div
                             className="hidden items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 lg:flex">
                             <div className="size-2 rounded-full bg-green-500 animate-pulse" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">GenesisAI Active</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-primary">BUDD-IE Active</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" className="hidden md:flex"
@@ -853,11 +853,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                                         className="absolute left-1/2 top-1/2 size-12 -translate-x-1/2 -translate-y-1/2 animate-pulse text-primary" />
                                 </div>
                                 <div className="space-y-3">
-                                    <h2 className="font-headline text-3xl font-bold text-gradient">GenesisAI Is
+                                    <h2 className="font-headline text-3xl font-bold text-gradient">BUDD-IE Is
                                         Monitoring Your Portal</h2>
                                     <p className="text-lg leading-relaxed text-muted-foreground">
                                         A monitored browser window is open for your school portal. Finish logging in
-                                        there and GenesisAI will silently extract fresh data before revealing the
+                                        there and BUDD-IE will silently extract fresh data before revealing the
                                         dashboard.
                                     </p>
                                 </div>
@@ -910,7 +910,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <DialogHeader>
                         <UIDialogTitle className="font-header text-2xl text-gradient">Portal settings</UIDialogTitle>
                         <DialogDescription>
-                            GenesisAI opens this portal in a monitored browser session at startup and during rescans.
+                            BUDD-IE opens this portal in a monitored browser session at startup and during rescans.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">

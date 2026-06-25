@@ -16,7 +16,7 @@ const getErrorMessage = (error: unknown) => {
       error.message.includes("fetch failed") &&
       (causeMessage.includes("Headers Timeout") || causeCode === "UND_ERR_HEADERS_TIMEOUT")
     ) {
-      return "Ollama timed out before the local model returned a response. The portal text was extracted, but genesisai-standalone is taking too long or is overloaded. Try closing other memory-heavy apps, restarting Ollama, then syncing again.";
+      return "Ollama timed out before the local model returned a response. The portal text was extracted, but BUDD-IE is taking too long or is overloaded. Try closing other memory-heavy apps, restarting Ollama, then syncing again.";
     }
 
     return causeMessage ? `${error.message}: ${causeMessage}` : error.message;
@@ -190,13 +190,14 @@ const parsePortalFlow = ai.defineFlow(
 
         const { normalizePortalScrapeUrl } = await import('@/lib/d2l-portal');
         scrapeUrl = normalizePortalScrapeUrl(scrapeUrl);
-        console.log(`GenesisAi: Launching autonomous scraper for ${scrapeUrl}`);
+        console.log(`BUDD-IE: Launching autonomous scraper for ${scrapeUrl}`);
         try {
             textToParse = await scrapePortal(scrapeUrl, input.username, input.password, {
                 sessionReady: input.sessionReady,
+                mode: input.mode,
             });
         } catch (scrapeError: unknown) {
-            console.warn(`GenesisAi: Scraping failed for ${scrapeUrl}:`, scrapeError);
+            console.warn(`BUDD-IE: Scraping failed for ${scrapeUrl}:`, scrapeError);
             const message = getErrorMessage(scrapeError);
             if (/detached|lifecyclewatcher/i.test(message)) {
                 throw new Error(
@@ -210,7 +211,7 @@ const parsePortalFlow = ai.defineFlow(
     if (!textToParse && !fileToParse) {
         if (scrapeUrl) {
             throw new Error(
-                "GenesisAI could not read your portal yet. Complete login in the browser window Agenda+ opened, wait for your course list to load, then tap Rescan."
+                "BUDD-IE could not read your portal yet. Complete login in the browser window Agenda+ opened, wait for your course list to load, then tap Rescan."
             );
         }
         return {
@@ -224,7 +225,7 @@ const parsePortalFlow = ai.defineFlow(
 
     const currentDate = input.currentDate || new Date().toLocaleDateString('en-CA');
     const cleanedText = textToParse.replace(/[^\S\r\n]+/g, ' ').trim();
-    console.log(`GenesisAi: Scraped portal text length: ${cleanedText.length} characters`);
+    console.log(`BUDD-IE: Scraped portal text length: ${cleanedText.length} characters`);
 
     if (cleanedText.length < 200) {
       throw new Error(
@@ -235,7 +236,7 @@ const parsePortalFlow = ai.defineFlow(
     const deterministicResult = parsePortalTextHeuristically(textToParse, currentDate);
     const deterministicCount = countPortalItems(deterministicResult);
 
-    console.log("GenesisAi: Deterministic portal parser found", {
+    console.log("BUDD-IE: Deterministic portal parser found", {
       assignments: deterministicResult.assignments.length,
       quizzes: deterministicResult.quizzes.length,
       discussions: deterministicResult.discussions.length,
@@ -244,23 +245,23 @@ const parsePortalFlow = ai.defineFlow(
     });
 
     if (deterministicCount === 0 && textToParse.includes("STRUCTURED:")) {
-      console.warn("GenesisAi: Scraper returned structured D2L data but parser extracted 0 items — check title/due-date rules.");
+      console.warn("BUDD-IE: Scraper returned structured D2L data but parser extracted 0 items — check title/due-date rules.");
     }
 
     // Reliable path: scraped D2L section text parses without waiting on Ollama.
     if (deterministicCount > 0) {
-      console.log("GenesisAi: Using deterministic extraction (Ollama skipped).");
+      console.log("BUDD-IE: Using deterministic extraction (Ollama skipped).");
       return {
         ...deterministicResult,
         grades: (deterministicResult as any).grades || [],
       };
     }
 
-    console.log("GenesisAi: No heuristic matches; parsing portal data via Ollama...");
+    console.log("BUDD-IE: No heuristic matches; parsing portal data via Ollama...");
 
     try {
       const { output } = await ai.generate({
-        model: 'ollama/genesisai-standalone:latest',
+        model: 'ollama/budd-ie:latest',
         config: {
           temperature: 0.1,
           num_ctx: 16384, // Increase context window for large portal data
@@ -270,7 +271,7 @@ const parsePortalFlow = ai.defineFlow(
           // which ensures headers are sent immediately and prevents UND_ERR_HEADERS_TIMEOUT
           // during long prompt processing.
         },
-        system: `You are GenesisAi-Standalone. Your mission is to scan the provided portal data and extract EVERYTHING for the student's courses.
+        system: `You are BUDD-IE. Your mission is to scan the provided portal data and extract EVERYTHING for the student's courses.
 
         The data is organized into sections: Assignments, Quizzes, Discussions, and Grades.
 
@@ -305,7 +306,7 @@ const parsePortalFlow = ai.defineFlow(
 
       if (countPortalItems(merged) === 0) {
         throw new Error(
-          "GenesisAi extracted portal text but could not find assignments, quizzes, or discussions. Open Assignments in your portal, then sync again."
+          "BUDD-IE extracted portal text but could not find assignments, quizzes, or discussions. Open Assignments in your portal, then sync again."
         );
       }
 
@@ -315,21 +316,21 @@ const parsePortalFlow = ai.defineFlow(
         quizzes: resolveAssignmentDueDates(merged.quizzes, textToParse, currentDate),
       };
     } catch (error: unknown) {
-      console.error("GenesisAi portal parsing failed:", error);
+      console.error("BUDD-IE portal parsing failed:", error);
       if (
         deterministicResult.assignments.length > 0 ||
         deterministicResult.quizzes.length > 0 ||
         deterministicResult.discussions.length > 0 ||
         deterministicResult.announcements.length > 0
       ) {
-        console.warn("GenesisAi: Ollama failed, using deterministic portal parser result.");
+        console.warn("BUDD-IE: Ollama failed, using deterministic portal parser result.");
         return {
           ...deterministicResult,
           grades: [],
         };
       }
 
-      throw new Error(`GenesisAi could not parse the extracted portal text: ${getErrorMessage(error)}`);
+      throw new Error(`BUDD-IE could not parse the extracted portal text: ${getErrorMessage(error)}`);
     }
   }
 );

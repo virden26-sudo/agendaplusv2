@@ -4,9 +4,11 @@ import {useState} from "react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {Card, CardContent} from "@/components/ui/card";
-import {BrainCircuit, Loader2, Sparkles} from "lucide-react";
+import {BrainCircuit, Loader2, Sparkles, AlertCircle} from "lucide-react";
 import {useToast} from "@/hooks/use-toast";
 import { parseAssignmentText } from "@/lib/local-api";
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
+import {Label} from "@/components/ui/label";
 
 interface NaturalLanguageAddProps {
     onAdd: (result: any) => void;
@@ -23,12 +25,26 @@ export function NaturalLanguageAdd({
     const [isProcessing, setIsProcessing] = useState(false);
     const {toast} = useToast();
 
+    // Clarification state when due date is missing
+    const [pendingAssignment, setPendingAssignment] = useState<any | null>(null);
+    const [clarifyDate, setClarifyDate] = useState("");
+    const [clarifyTitle, setClarifyTitle] = useState("");
+    const [clarifyCourse, setClarifyCourse] = useState("");
+
     const handleAdd = async () => {
         if (!text.trim()) return;
 
         setIsProcessing(true);
         try {
-            const result = parseAssignmentText(text);
+            const result = await parseAssignmentText(text);
+            if (!result.dueDate) {
+                setPendingAssignment(result);
+                setClarifyDate("");
+                setClarifyTitle(result.task || "");
+                setClarifyCourse(result.course || "");
+                setIsProcessing(false);
+                return;
+            }
             onAdd(result);
 
             toast({
@@ -46,6 +62,29 @@ export function NaturalLanguageAdd({
         } finally {
             setIsProcessing(false);
         }
+    };
+
+    const handleClarifySave = () => {
+        if (!clarifyDate) {
+            toast({
+                variant: "destructive",
+                title: "Date Required",
+                description: "Please choose a due date.",
+            });
+            return;
+        }
+        onAdd({
+            ...pendingAssignment,
+            task: clarifyTitle.trim() || "Untitled Task",
+            course: clarifyCourse.trim() || "General",
+            dueDate: clarifyDate
+        });
+        toast({
+            title: "Added Successfully",
+            description: `Budd-ie identified: ${clarifyTitle}`,
+        });
+        setPendingAssignment(null);
+        setText("");
     };
 
     return (
@@ -85,6 +124,56 @@ export function NaturalLanguageAdd({
                     Budd-ie AI will automatically identify the title, due date, and course.
                 </p>
             </CardContent>
+
+            <Dialog open={pendingAssignment !== null} onOpenChange={(open) => { if (!open) setPendingAssignment(null); }}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertCircle className="text-destructive animate-pulse" />
+                            Clarify Due Date
+                        </DialogTitle>
+                        <DialogDescription>
+                            BUDD-IE couldn&apos;t determine the exact due date. Please enter details and select a due date to proceed.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="clarify-title">Task Title</Label>
+                            <Input 
+                                id="clarify-title" 
+                                value={clarifyTitle} 
+                                onChange={(e) => setClarifyTitle(e.target.value)} 
+                                placeholder="Task Title"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="clarify-course">Course</Label>
+                            <Input 
+                                id="clarify-course" 
+                                value={clarifyCourse} 
+                                onChange={(e) => setClarifyCourse(e.target.value)} 
+                                placeholder="Course"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="clarify-date" className="text-destructive font-semibold">
+                                Due Date *
+                            </Label>
+                            <Input 
+                                id="clarify-date" 
+                                type="date" 
+                                value={clarifyDate} 
+                                onChange={(e) => setClarifyDate(e.target.value)} 
+                                className="border-destructive focus-visible:ring-destructive"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="pt-4">
+                        <Button variant="ghost" onClick={() => setPendingAssignment(null)}>Cancel</Button>
+                        <Button onClick={handleClarifySave} disabled={!clarifyDate}>Add Assignment</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </Card>
     );
 }

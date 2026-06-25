@@ -78,8 +78,8 @@ export class ElectronCapacitorApp {
 
     // Setup our web app loader, this lets us load apps like react, vue, and angular without changing their build chains.
     const webAppPath = join(app.getAppPath(), 'app');
-    console.log('GenesisAi: app.getAppPath():', app.getAppPath());
-    console.log('GenesisAi: Web App Path:', webAppPath);
+    console.log('BUDD-IE: app.getAppPath():', app.getAppPath());
+    console.log('BUDD-IE: Web App Path:', webAppPath);
     this.loadWebApp = electronServe({
       directory: webAppPath,
       scheme: this.customScheme,
@@ -127,7 +127,7 @@ export class ElectronCapacitorApp {
       },
     });
     this.mainWindowState.manage(this.MainWindow);
-    console.log('GenesisAi: Main window created and managed');
+    console.log('BUDD-IE: Main window created and managed');
 
     if (this.CapacitorFileConfig.backgroundColor) {
       this.MainWindow.setBackgroundColor(this.CapacitorFileConfig.electron.backgroundColor);
@@ -135,7 +135,7 @@ export class ElectronCapacitorApp {
 
     // If we close the main window with the splashscreen enabled we need to destory the ref.
     this.MainWindow.on('closed', () => {
-      console.log('GenesisAi: Main window closed');
+      console.log('BUDD-IE: Main window closed');
       if (this.SplashScreen?.getSplashWindow() && !this.SplashScreen.getSplashWindow().isDestroyed()) {
         this.SplashScreen.getSplashWindow().close();
       }
@@ -196,7 +196,7 @@ export class ElectronCapacitorApp {
       }
     });
     this.MainWindow.webContents.on('will-navigate', (event, newURL) => {
-      console.log(`GenesisAi: will-navigate to ${newURL}`);
+      console.log(`BUDD-IE: will-navigate to ${newURL}`);
       if (!newURL.includes(this.customScheme)) {
         event.preventDefault();
       }
@@ -207,17 +207,17 @@ export class ElectronCapacitorApp {
 
     // When the web app is loaded we hide the splashscreen if needed and show the mainwindow.
     this.MainWindow.webContents.on('dom-ready', () => {
-      console.log('GenesisAi: dom-ready event triggered');
+      console.log('BUDD-IE: dom-ready event triggered');
       if (this.CapacitorFileConfig.electron?.splashScreenEnabled) {
         this.SplashScreen.getSplashWindow().hide();
       }
       if (!this.CapacitorFileConfig.electron?.hideMainWindowOnLaunch) {
-        console.log('GenesisAi: Showing main window');
+        console.log('BUDD-IE: Showing main window');
         this.MainWindow.show();
       }
       setTimeout(() => {
         if (electronIsDev) {
-          console.log('GenesisAi: Opening DevTools');
+          console.log('BUDD-IE: Opening DevTools');
           this.MainWindow.webContents.openDevTools();
         }
         CapElectronEventEmitter.emit('CAPELECTRON_DeeplinkListenerInitialized', '');
@@ -264,3 +264,4 @@ export function setupContentSecurityPolicy(customScheme: string): void {
     });
   });
 }
+

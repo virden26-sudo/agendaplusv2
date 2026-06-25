@@ -63,7 +63,7 @@ export default function PortalPage() {
     if (extractedData && extractedData.length > 0) {
       addMultipleAssignments(extractedData);
       toast({
-        title: "GenesisAi: Data Synchronized",
+        title: "BUDD-IE: Data Synchronized",
         description: `Success! Imported ${extractedData.length} assignments to your agenda.`,
       });
       setPortalText("");
@@ -76,10 +76,10 @@ export default function PortalPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold font-headline text-purple-600 flex items-center gap-2">
           <BrainCircuit className="size-8" />
-          GenesisAi Portal Sync
+          BUDD-IE Portal Sync
         </h1>
         <p className="text-muted-foreground">
-          Powered by GenesisAi-Standalone. High-precision local extraction for your academic portal.
+          Powered by BUDD-IE. High-precision local extraction for your academic portal.
         </p>
       </div>
 
@@ -129,12 +129,12 @@ export default function PortalPage() {
                             {isProcessing ? (
                             <>
                                 <Loader2 className="mr-2 animate-spin" />
-                                GenesisAi Analyzing...
+                                BUDD-IE Analyzing...
                             </>
                             ) : (
                             <>
                                 <BrainCircuit className="mr-2" />
-                                Run GenesisAi Extraction
+                                Run BUDD-IE Extraction
                             </>
                             )}
                         </Button>
@@ -148,7 +148,7 @@ export default function PortalPage() {
                                     <Check className="size-6 text-green-600" />
                                     Extracted Findings
                                 </CardTitle>
-                                <CardDescription>GenesisAi has mapped the following tasks from your data.</CardDescription>
+                                <CardDescription>BUDD-IE has mapped the following tasks from your data.</CardDescription>
                             </div>
                             <div className="flex gap-3">
                                 <Button variant="ghost" onClick={() => setExtractedData(null)}>
@@ -199,10 +199,10 @@ export default function PortalPage() {
                         <CardHeader className="pb-3">
                             <CardTitle className="text-lg font-bold flex items-center gap-2 text-purple-900">
                                 <Sparkles className="size-5 text-purple-600" />
-                                Autonomous GenesisAI Sync
+                                Autonomous BUDD-IE Sync
                             </CardTitle>
                             <CardDescription className="text-purple-800/70">
-                                Best for desktop users. GenesisAI opens a monitored browser and extracts data automatically.
+                                Best for desktop users. BUDD-IE opens a monitored browser and extracts data automatically.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -218,7 +218,7 @@ export default function PortalPage() {
                                 className="w-full h-12 bg-purple-700 hover:bg-purple-800 text-white font-bold"
                                 onClick={() => {
                                     toast({
-                                        title: "GenesisAI Triggered",
+                                        title: "BUDD-IE Triggered",
                                         description: "Check your computer for a monitored browser window.",
                                     });
                                     // We can't call runPortalSync directly from here easily without context,
@@ -238,12 +238,12 @@ export default function PortalPage() {
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-medium flex items-center gap-2 text-purple-800">
                                 <Database className="size-4" />
-                                Genesis Protocol
+                                BUDD-IE Protocol
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <p className="text-xs text-muted-foreground leading-relaxed">
-                                GenesisAi-Standalone operates entirely offline. Your data never leaves this device.
+                                BUDD-IE operates entirely offline. Your data never leaves this device.
                             </p>
                             <div className="space-y-2">
                                 <div className="flex items-center gap-2 text-[10px] text-purple-700 font-bold uppercase">
@@ -261,10 +261,10 @@ export default function PortalPage() {
                     <div className="p-6 bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl text-white shadow-lg flex flex-col gap-3">
                         <div className="flex items-center gap-2">
                             <BrainCircuit className="size-6" />
-                            <span className="font-bold">GenesisAi Core</span>
+                            <span className="font-bold">BUDD-IE Core</span>
                         </div>
                         <p className="text-xs opacity-90 leading-relaxed font-medium">
-                            This module uses the GenesisAi-Standalone model to scan for tasks across your entire course cycle.
+                            This module uses BUDD-IE to scan for tasks across your entire course cycle.
                         </p>
                     </div>
                 </div>
@@ -313,7 +313,7 @@ export default function PortalPage() {
                             Pro Tip
                         </h4>
                         <p className="text-xs text-slate-300 leading-relaxed">
-                            GenesisAI works best when you are on the "Course Dashboard" or "Calendar" view of your portal. If you don&apos;t see data, try navigating to those sections first!
+                            BUDD-IE works best when you are on the "Course Dashboard" or "Calendar" view of your portal. If you don&apos;t see data, try navigating to those sections first!
                         </p>
                     </div>
                 </div>
