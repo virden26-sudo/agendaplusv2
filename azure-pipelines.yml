@@ -1,0 +1,23 @@
+trigger:
+  - main
+
+pool:
+  name: 'Default' # Replace with your local pool name if different
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '20.x'
+    displayName: 'Install Node.js'
+
+  - script: |
+      npm ci
+    displayName: 'Install Dependencies'
+
+  - script: |
+      npm run build
+    displayName: 'Build Project'
+
+  - script: |
+      npm test --if-present
+    displayName: 'Run Tests'
