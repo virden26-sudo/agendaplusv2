@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-type: "all"
+    # Only allow non-major updates by default
+    # Dependabot will suggest major updates but you can configure policies per package
+
+  - package-ecosystem: "npm"
+    directory: "/electron"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3

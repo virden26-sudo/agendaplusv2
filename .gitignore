@@ -45,3 +45,19 @@ app/src/main/res/xml/config.xml
 electron/node_modules/
 electron/dist/
 electron/build/
+
+# Visual Studio
+.vs/
+
+# TypeScript build info
+tsconfig.tsbuildinfo
+
+# Ephemeral browser profiles and test artifacts
+.portal-browser-profile-ephemeral*/
+playwright-report/
+test-results/
+
+# Keystore / credentials / platform artifacts
+keystore
+ios/
+android/

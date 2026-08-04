@@ -7,7 +7,7 @@
     "dev:next": "next dev -p 3000 --webpack",
     "build": "next build --webpack",
     "export": "next build && next export",
-    "start": "npm --prefix electron run electron:start",
+    "start": "node scripts/start-electron.js",
     "RunIt": "next start -p 3000",
     "electron:start-live": "npm --prefix electron run electron:start-live",
     "electron:sync": "npm run build && node scripts/fix-electron-rsc-paths.js && npx cap sync @capacitor-community/electron && node scripts/fix-electron-rsc-paths.js",
@@ -27,7 +27,7 @@
   "dependencies": {
     "@capacitor-community/electron": "^5.0.1",
     "@capacitor/android": "^8.4.0",
-    "@capacitor/cli": "^7.6.2",
+    "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/ios": "^8.3.1",
     "@genkit-ai/next": "^1.16.1",
@@ -56,6 +56,7 @@
     "chromium-bidi": "^15.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "codex": "^0.2.3",
     "date-fns": "^3.6.0",
     "dotenv": "^16.5.0",
     "embla-carousel-react": "^8.6.0",
@@ -99,9 +100,10 @@
     "webpack": "^5.106.2"
   },
   "allowScripts": {
-    "@firebase/util@1.12.1": true,
     "protobufjs@7.5.5": true,
     "sharp@0.34.5": true,
-    "unrs-resolver@1.11.1": true
+    "unrs-resolver@1.11.1": true,
+    "@firebase/util@1.15.1": true,
+    "ws@0.4.32": true
   }
 }
