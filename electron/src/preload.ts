@@ -4,8 +4,8 @@ require('./rt/electron-rt.js');
 console.log('User Preload!');
 
 // Expose IPC to renderer process
-import { ipcRenderer } from 'electron';
-(window as any).electronAPI = {
+import { contextBridge, ipcRenderer } from 'electron';
+contextBridge.exposeInMainWorld('electronAPI', {
   sendLogout: () => ipcRenderer.send('user-logout'),
   getBackendStatus: () => ipcRenderer.invoke('agenda:get-backend-status'),
-};
+});

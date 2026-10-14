@@ -4,7 +4,7 @@ import type { MenuItemConstructorOptions } from 'electron';
 import { app, MenuItem, ipcMain } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import unhandled from 'electron-unhandled';
-import { spawn, exec } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as net from 'net';
@@ -288,23 +288,19 @@ const startServers = async () => {
 const stopServers = () => {
   console.log('BUDD-IE: Stopping sidecar services...');
   
-  if (process.platform === 'win32') {
-    // Force kill Ollama
-    exec('taskkill /F /IM ollama.exe /T', (error) => {
-      if (error) console.log('Ollama process not found or already stopped');
-    });
-    
-    // Force kill Next.js process tree
-    if (nextProcess && nextProcess.pid) {
-      exec(`taskkill /F /T /PID ${nextProcess.pid}`, (error) => {
-        if (error) console.log('Next.js process tree not found or already stopped');
+  // Never terminate an Ollama instance that another application owns.
+  for (const child of [serverProcess, nextProcess]) {
+    if (!child || child.exitCode !== null || !child.pid) continue;
+    if (process.platform === 'win32') {
+      execFile('taskkill', ['/F', '/T', '/PID', String(child.pid)], (error) => {
+        if (error) console.log('BUDD-IE: Owned sidecar already stopped.');
       });
+    } else {
+      child.kill();
     }
-  } else {
-    if (serverProcess) serverProcess.kill();
-    if (nextProcess) nextProcess.kill();
   }
-  
+  nextBackendReady = false;
+
   serverProcess = null;
   nextProcess = null;
   console.log('BUDD-IE: Sidecar services stopped');

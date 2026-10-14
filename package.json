@@ -18,6 +18,7 @@
     "prod:build": "npm run build",
     "prod:serve": "npx serve out -p 3000",
     "test:prod": "npx playwright test",
+    "test:unit": "node --test tests/unit/*.test.cjs",
     "ai": "genkit start -- tsx --watch src/ai/dev.ts",
     "cap:sync": "npx cap sync",
     "android:sync": "npm run build && npx cap sync android",

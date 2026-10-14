@@ -19,6 +19,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
       
+      - name: Run unit regression tests
+        run: npm run test:unit
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
       
