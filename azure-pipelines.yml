@@ -1,23 +1,17 @@
 trigger:
   - main
-
 pool:
-  name: 'Default' # Replace with your local pool name if different
-
+  vmImage: ubuntu-latest
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: '20.x'
-    displayName: 'Install Node.js'
-
-  - script: |
-      npm ci
-    displayName: 'Install Dependencies'
-
-  - script: |
-      npm run build
-    displayName: 'Build Project'
-
-  - script: |
-      npm test --if-present
-    displayName: 'Run Tests'
+      versionSpec: '22.x'
+    displayName: Install Node.js
+  - script: npm ci
+    displayName: Install locked dependencies
+  - script: npm run test:unit && npm run typecheck && npm run lint
+    displayName: Validate source
+  - script: npm run build
+    displayName: Build static frontend
+  - script: npx playwright install --with-deps chromium && npm run test:prod
+    displayName: Test production frontend

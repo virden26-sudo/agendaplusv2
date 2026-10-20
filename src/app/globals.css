@@ -97,3 +97,8 @@
     font-style: italic;
   }
 }
+
+:root {
+  --font-roboto: "Roboto", sans-serif;
+  --font-dancing-script: "Dancing Script", cursive;
+}

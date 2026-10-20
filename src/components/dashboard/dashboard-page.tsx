@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useRouter } from 'next/navigation';
 import { WelcomeHeader } from "./welcome-header";
 import { UpcomingAssignments } from "./upcoming-assignments";
 import { GradeOverview } from "./grade-overview";
@@ -13,6 +14,7 @@ import { useGrades } from "@/context/grades-context";
 import { Megaphone, Loader2 } from "lucide-react";
 
 export function DashboardPage() {
+  const router = useRouter();
   const { user, isUserLoaded } = useUser();
   const { assignments, loading: assignmentsLoading } = useAssignments();
   const { courses, loading: gradesLoading } = useGrades();
@@ -65,7 +67,7 @@ export function DashboardPage() {
                 </div>
             </div>
           )}
-          <div className="cursor-pointer" onClick={() => { window.location.href = '/calendar'; }}>
+          <div className="cursor-pointer" onClick={() => { router.push('/calendar'); }}>
             <CalendarView />
           </div>
         </div>

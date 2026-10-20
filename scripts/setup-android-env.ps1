@@ -56,4 +56,4 @@ Write-Host "  JAVA_HOME = $javaHome"
 Write-Host "  Updated User PATH with Java + Android tools"
 Write-Host "  Wrote $localProps"
 Write-Host ''
-Write-Host 'Open a NEW terminal, then build with: npm run android:apk'
+Write-Host 'Open a NEW terminal, then build with: npm run android:debug'

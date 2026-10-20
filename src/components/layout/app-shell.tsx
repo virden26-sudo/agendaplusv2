@@ -79,7 +79,7 @@ import { useGrades } from "@/context/grades-context";
 import { usePortal } from "@/context/portal-context";
 import { useQuizzes } from "@/context/quizzes-context";
 import { useUser } from "@/context/user-context";
-import { apiFetch, getApiUrl } from "@/lib/api-config";
+import { apiFetch } from "@/lib/api-config";
 import { readLocalStorage } from "@/lib/storage";
 import { sanitizeCourseName } from "@/lib/assignment-quality";
 import type { ParsedAssignment } from "@/ai/schemas/assignment";
@@ -543,12 +543,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     React.useEffect(() => {
         const handleUnload = () => {
-            const url = getApiUrl("/api/stop-scraper");
-            if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-                navigator.sendBeacon(url);
-            } else {
-                void apiFetch("/api/stop-scraper", { method: "POST" });
-            }
+            void apiFetch("/api/stop-scraper", { method: "POST", keepalive: true }).catch(() => {});
         };
 
         window.addEventListener("beforeunload", handleUnload);

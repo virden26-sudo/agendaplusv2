@@ -7,8 +7,8 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:9.2.1'
-        classpath 'com.google.gms:google-services:4.4.2'
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -23,28 +23,6 @@ allprojects {
         mavenCentral()
     }
 
-    configurations.all {
-        resolutionStrategy.eachDependency { details ->
-            if (details.requested.group == 'org.jetbrains.kotlin') {
-                details.useVersion "1.9.10"
-            }
-        }
-    }
-}
-
-subprojects { sub ->
-    sub.afterEvaluate {
-        def hasAndroid = sub.plugins.hasPlugin('com.android.application') ||
-                sub.plugins.hasPlugin('com.android.library')
-        if (hasAndroid && sub.extensions.findByName('android') != null) {
-            sub.android {
-                lint {
-                    checkReleaseBuilds false
-                    abortOnError false
-                }
-            }
-        }
-    }
 }
 
 task clean(type: Delete) {

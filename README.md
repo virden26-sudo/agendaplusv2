@@ -1,3 +1,7 @@
+# Agenda+ builds
+
+See [Building and releasing](docs/RELEASING.md) for current Android and Electron commands, CI artifacts, signing, and release acceptance. The instructions below may describe older development workflows.
+
 # Agenda+
 
 Agenda+ is a student planner built with **Next.js 16**, **TypeScript**, **Tailwind CSS**, and **shadcn/ui**. The core app stores assignments and settings in the browser (`**localStorage`**); there is no hosted database for day-to-day use.

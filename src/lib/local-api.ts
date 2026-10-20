@@ -6,7 +6,7 @@ import {
 } from "@/lib/client-ai-fallbacks";
 import { parsePortalDataOnDevice } from "@/lib/portal-sync-client";
 import type { TutorInput, TutorOutput } from "@/ai/schemas";
-import type { ParsedAssignment } from "@/ai/schemas/assignment";
+import { AssignmentSchema, type ParsedAssignment } from "@/ai/schemas/assignment";
 import { apiFetch } from "@/lib/api-config";
 
 /** All Agenda+ features run on-device — no backend URL or PC required. */
@@ -33,8 +33,9 @@ export async function parseAssignmentText(assignmentText: string): Promise<Parse
         });
         if (response && response.ok) {
             const data = await response.json();
-            if (data && !data.error) {
-                return data;
+            const parsed = AssignmentSchema.safeParse(data);
+            if (!data?.offline && parsed.success && parsed.data.task.trim()) {
+                return parsed.data;
             }
         }
     } catch (e) {

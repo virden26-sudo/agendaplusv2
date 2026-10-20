@@ -1,42 +1,100 @@
 name: Android CI
-
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
-
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Build signed release APK and AAB (requires Android signing secrets)
+        type: boolean
+        default: false
+permissions:
+  contents: read
 jobs:
-  build:
+  debug:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: 17
-
-    - name: Cache Gradle
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.gradle/caches
-          ~/.gradle/wrapper/
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-        restore-keys: |
-          ${{ runner.os }}-gradle-
-
-    - name: Grant execute permission for gradlew
-      run: chmod +x android/gradlew
-
-    - name: Build Debug
-      run: cd android && ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home=$JAVA_HOME
-      env:
-        GRADLE_OPTS: "-Dorg.gradle.java.installations.auto-detect=false -Dorg.gradle.java.installations.paths=$JAVA_HOME"
-
-    - name: Run lint
-      run: cd android && ./gradlew lintDebug --no-daemon || true
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - run: npm ci
+      - run: npm run android:sync
+      - run: chmod +x android/gradlew
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build, test, and lint Android
+        working-directory: android
+        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agenda-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-reports
+          path: android/app/build/reports/
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    needs: debug
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
+      - name: Configure production signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          keys = ['ANDROID_KEYSTORE_BASE64', 'ANDROID_STORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD']
+          if any(not os.environ.get(key) for key in keys):
+              raise SystemExit('All four Android signing secrets are required.')
+          Path('android/release.jks').write_bytes(base64.b64decode(os.environ[keys[0]], validate=True))
+          def escape(value):
+              return value.replace('\\', '\\\\').replace('\n', '\\n').replace('\r', '\\r')
+          values = {'storeFile': '../release.jks', 'storePassword': os.environ[keys[1]], 'keyAlias': os.environ[keys[2]], 'keyPassword': os.environ[keys[3]]}
+          Path('android/keystore.properties').write_text(''.join(f'{key}={escape(value)}\n' for key, value in values.items()))
+          PY
+      - run: npm ci
+      - run: npm run android:sync
+      - run: chmod +x android/gradlew
+      - uses: gradle/actions/setup-gradle@v4
+      - working-directory: android
+        run: ./gradlew assembleRelease bundleRelease lintRelease --no-daemon
+      - name: Verify APK signature
+        run: "$ANDROID_HOME/build-tools/36.0.0/apksigner verify --verbose android/app/build/outputs/apk/release/app-release.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agenda-android-release
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - name: Remove signing files
+        if: always()
+        run: rm -f android/keystore.properties android/release.jks

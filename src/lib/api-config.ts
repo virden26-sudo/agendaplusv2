@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { getElectronBackendCandidates, isElectronShell } from '@/lib/electron-bridge';
+import { getElectronBackendCandidates, getElectronBackendHeaders, isElectronShell } from '@/lib/electron-bridge';
 
 /**
  * Centralized API configuration — discovers the local Next.js API automatically.
@@ -275,7 +275,11 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
                 ? init?.signal
                 : AbortSignal.any([init?.signal || new AbortController().signal, AbortSignal.timeout(2000)]);
 
-            const response = await fetch(url, { ...init, signal });
+            const headers = new Headers(init?.headers);
+            for (const [name, value] of Object.entries(await getElectronBackendHeaders(candidate))) {
+                headers.set(name, value);
+            }
+            const response = await fetch(url, { ...init, headers, signal });
 
             if (response.status === 404 || response.redirected) {
                 failures.push(`${candidate || "relative"} (${response.redirected ? "redirected" : "404"})`);

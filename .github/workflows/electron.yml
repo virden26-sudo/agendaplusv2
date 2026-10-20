@@ -1,0 +1,34 @@
+name: Electron Windows Build
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+      - run: npm ci
+      - run: npm --prefix electron ci
+      - run: npm run electron:build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - run: npm run test:backend
+      - name: Test packaged application and backend
+        run: npm --prefix electron run test:smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agenda-windows-installer
+          path: electron/dist/*.exe
+          if-no-files-found: error
