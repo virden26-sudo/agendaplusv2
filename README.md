@@ -4,6 +4,9 @@ See [Building and releasing](docs/RELEASING.md) for current Android and Electron
 
 # Agenda+
 
+For native phone editing, offline commits, and shared Android/Windows cloud
+builds, see [Free hybrid workspace](docs/HYBRID_WORKSPACE.md).
+
 Agenda+ is a student planner built with **Next.js 16**, **TypeScript**, **Tailwind CSS**, and **shadcn/ui**. The core app stores assignments and settings in the browser (`**localStorage`**); there is no hosted database for day-to-day use.
 
 Optional targets:
