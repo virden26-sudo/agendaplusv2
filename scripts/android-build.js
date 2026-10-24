@@ -4,7 +4,12 @@ const { buildStatic } = require('./build-static');
 const root = path.resolve(__dirname, '..');
 const tasks = { 'build-android': null, 'apk-debug': 'assembleDebug', 'apk-release': 'assembleRelease', 'bundle-release': 'bundleRelease' };
 function run(bin, args, cwd = root) {
-  const result = spawnSync(bin, args, { cwd, stdio: 'inherit', shell: process.platform === 'win32' });
+  // Only batch files need cmd.exe. In particular, do not run process.execPath
+  // through a shell: Windows Node installations commonly contain spaces.
+  const result = spawnSync(bin, args, {
+    cwd, stdio: 'inherit',
+    shell: process.platform === 'win32' && /\.(bat|cmd)$/i.test(bin),
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${bin} failed (${result.status}).`);
 }
