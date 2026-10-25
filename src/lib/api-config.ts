@@ -263,19 +263,22 @@ const looksLikeJsonResponse = async (response: Response) => {
 
 export async function apiFetch(endpoint: string, init?: RequestInit, manualOverride?: string) {
     const formattedEndpoint = normalizeEndpoint(endpoint);
-    const candidates = await collectApiBaseCandidates(manualOverride);
+    const remote = typeof window !== 'undefined' ? normalizeBaseUrl(localStorage.getItem('agendaRemoteApiBaseUrl')) : '';
+    const candidates = remote ? [remote] : await collectApiBaseCandidates(manualOverride);
     const failures: string[] = [];
 
     for (const candidate of candidates) {
         const url = `${candidate}${formattedEndpoint}`;
 
         try {
-            // Fast timeout for non-localhost candidates to prevent UI lag
-            const signal = candidate.includes('localhost') || candidate.includes('127.0.0.1') || candidate === ''
-                ? init?.signal
-                : AbortSignal.any([init?.signal || new AbortController().signal, AbortSignal.timeout(2000)]);
+            // Explicit caller deadlines cover long portal scans and model generation.
+            const signal = init?.signal || AbortSignal.timeout(15000);
 
             const headers = new Headers(init?.headers);
+            if (remote && candidate === remote) {
+                const token = sessionStorage.getItem('agendaRemoteApiToken');
+                if (token) headers.set('X-Agenda-Token', token);
+            }
             for (const [name, value] of Object.entries(await getElectronBackendHeaders(candidate))) {
                 headers.set(name, value);
             }

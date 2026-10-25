@@ -33,7 +33,7 @@ export function parsePortalDataOnDevice(
         announcements: parsed.announcements,
         discussions: parsed.discussions,
         quizzes: parsed.quizzes,
-        grades: gradeRows,
+        grades: parsed.grades.length ? parsed.grades : gradeRows,
     };
 }
 

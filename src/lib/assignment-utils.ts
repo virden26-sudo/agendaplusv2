@@ -8,7 +8,8 @@ export const getPriorityBadgeVariant = (priority: 'low' | 'medium' | 'high') => 
     }
 }
 
-export const getDueDateInfo = (dueDate: Date) => {
+export const getDueDateInfo = (dueDate?: Date) => {
+    if (!dueDate || Number.isNaN(dueDate.getTime())) return {text: "Deadline unverified", className: "text-muted-foreground"};
     const days = differenceInDays(dueDate, new Date());
     if (days < 0) return { text: "Overdue", className: "text-destructive font-semibold" };
     if (days < 1) return { text: "Due today", className: "text-accent-foreground font-semibold" };

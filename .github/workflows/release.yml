@@ -1,0 +1,67 @@
+name: Verified public preview
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag matching package version (for example v0.1.1-preview.1)
+        required: true
+        default: v0.1.1-preview.1
+        type: string
+permissions:
+  contents: read
+jobs:
+  source:
+    uses: ./.github/workflows/production-test.yml
+  windows:
+    uses: ./.github/workflows/electron.yml
+  android:
+    uses: ./.github/workflows/android.yml
+    with:
+      release: true
+    secrets: inherit
+  publish:
+    needs: [source, windows, android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release tag against source version
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re
+          version = json.load(open('package.json'))['version']
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v' + re.escape(version) + r'-preview\.\d+', tag):
+              raise SystemExit('This workflow publishes previews only. Tag must match v' + version + '-preview.NUMBER')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: agenda-windows-installer
+          path: release-downloads/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: agenda-android-release
+          path: release-downloads/android
+      - name: Collect installers and checksums
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, shutil
+          target = Path('release-assets')
+          target.mkdir()
+          files = [p for p in Path('release-downloads').rglob('*') if p.suffix in ['.exe','.apk','.aab']]
+          if {p.suffix for p in files} != {'.exe','.apk','.aab'}:
+              raise SystemExit('Windows installer, signed APK and signed AAB are all required')
+          for p in files:
+              shutil.copy2(p, target/p.name)
+          (target/'SHA256SUMS.txt').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.name + '\n' for p in sorted(target.iterdir())))
+          PY
+      - name: Publish tested preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release create "$RELEASE_TAG" release-assets/* --target "$GITHUB_SHA" --prerelease --title "Agenda+ $RELEASE_TAG — Public Preview" --notes-file docs/PREVIEW_NOTES.md

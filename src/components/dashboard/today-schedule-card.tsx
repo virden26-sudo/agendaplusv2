@@ -21,8 +21,8 @@ export function TodayScheduleCard() {
     const loading = assignmentsLoading || quizzesLoading || tasksLoading;
 
     const todayItems = [
-        ...assignments.filter(a => !a.completed && isToday(new Date(a.dueDate))).map(a => ({...a, type: 'Assignment'})),
-        ...quizzes.filter(q => isToday(new Date(q.dueDate))).map(q => ({...q, type: 'Quiz'})),
+        ...assignments.filter(a => !a.completed && a.dueDate && isToday(a.dueDate)).map(a => ({...a, type: 'Assignment'})),
+        ...quizzes.filter(q => q.dueDate && isToday(q.dueDate)).map(q => ({...q, type: 'Quiz'})),
         ...tasks.filter(t => !t.completed && t.title.toLowerCase().includes('discussion')).map(t => ({
             id: t.id,
             title: t.title,

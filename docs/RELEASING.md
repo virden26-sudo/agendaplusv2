@@ -87,3 +87,24 @@ production signing, back up local data, and test upgrades from the previous vers
 
 The repository's existing dependency upgrade branch is separate work. Do not merge
 it blindly: reconcile it with main, use Node 22, and rerun all platform checks.
+
+## Coursework and tutor verification
+
+Run `npm test`, `npm run typecheck`, `npm run lint`, `npm run build`, and
+`npm run test:prod`. The production tests import all coursework kinds, check
+unknown dates, deliberately fail a diagnostic, and check remediation and saved
+progress. The scraper fixture checks shadow roots and iframes. For an installed
+Chromium, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to its executable path.
+
+AI explanations use the official Ollama chat endpoint with JSON-schema validation.
+Set `OLLAMA_BASE_URL` and `OLLAMA_MODEL` on the optional backend; defaults are
+http://127.0.0.1:11434 and budd-ie:latest. No model is downloaded automatically.
+Android’s static app supports local text import and supported diagnostic practice
+without a PC. Broader AI explanations and automatic portal scraping need the
+optional reachable backend. Do not describe a static APK as containing server API
+routes. Desktop includes the standalone backend.
+
+After platform verification and production signing configuration, manually run
+`Verified public preview` with `v0.1.1-preview.1`. Its source, Windows and Android
+jobs must all pass before signed APK/AAB, Windows installer and checksums can be
+published. Existing v0.1.0 source downloads are preserved.

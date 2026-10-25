@@ -7,7 +7,8 @@ export interface Quiz {
     id: string;
     title: string;
     course: string;
-    dueDate: Date;
+    dueDate?: Date;
+    details?: string;
     questionCount?: number;
 }
 
@@ -42,7 +43,7 @@ function loadStoredQuizzes(): Quiz[] {
         if (!Array.isArray(parsed)) return [];
         return parsed.map((q: Quiz & { dueDate: string }) => ({
             ...q,
-            dueDate: new Date(q.dueDate),
+            dueDate: q.dueDate ? new Date(q.dueDate) : undefined,
         }));
     } catch (error) {
         console.error("Failed to load quizzes from localStorage", error);
@@ -79,7 +80,7 @@ export const QuizzesProvider = ({children}: { children: ReactNode }) => {
     }, []);
 
     const loadData = (data: Quiz[]) => {
-        const parsedData = data.map(q => ({...q, dueDate: new Date(q.dueDate)}));
+        const parsedData = data.map(q => ({...q, dueDate: q.dueDate ? new Date(q.dueDate) : undefined}));
         setQuizzes(parsedData);
     };
 

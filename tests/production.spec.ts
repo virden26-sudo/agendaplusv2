@@ -41,3 +41,52 @@ test('tasks survive reload and can be completed without an API backend', async (
   await page.getByRole('tab', { name: 'Completed', exact: true }).click();
   await expect(row.getByRole('checkbox')).toBeChecked();
 });
+
+
+test('coursework import saves discussions and quizzes, and tutor diagnoses, teaches and remembers progress offline', async ({page,context}) => {
+  await context.addInitScript(() => {
+    localStorage.setItem('agendaUser', JSON.stringify({name:'Tutor Test', avatarUrl:''}));
+    localStorage.setItem('studentPortalUrl','https://example.edu/d2l/home');
+  });
+  await context.route('**/api/**', route => route.abort());
+  await page.goto('/portal');
+  await page.getByLabel('Portal text or syllabus').fill(`CSC262 Programming in Java
+Assignments
+Assignment 3: Java arrays
+Instructions: Use arrays and loops.
+Due: October 27, 2026
+Quizzes
+Quiz 3: Java methods
+Discussions
+Discussion 3: Java inheritance
+Explain Java inheritance.`);
+  await page.getByRole('button',{name:'Extract coursework',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Extracted coursework'})).toContainText('Review 3 items');
+  await page.getByRole('button',{name:'Confirm import'}).click();
+  await expect(page.getByRole('status').filter({hasText:'Imported 3 coursework items'})).toBeVisible();
+  const stored = await page.evaluate(() => ({assignments:JSON.parse(localStorage.getItem('agendaAssignments') || '[]'), quizzes:JSON.parse(localStorage.getItem('agendaQuizzes') || '[]'), discussions:JSON.parse(localStorage.getItem('agendaDiscussions') || '[]')}));
+  expect(stored.quizzes).toHaveLength(1); expect(stored.discussions).toHaveLength(1);
+  expect(stored.quizzes[0].dueDate).toBeUndefined();
+  expect(stored.discussions[0].content).toContain('inheritance');
+  await page.goto('/quizzes'); await expect(page.getByRole('cell',{name:'Unverified',exact:true})).toBeVisible();
+  await page.goto('/tutor');
+  await page.getByRole('button',{name:'Start diagnostic',exact:true}).click();
+  let region = page.getByRole('region',{name:'Practice question'});
+  await expect(region).toBeVisible();
+  // Deliberately answer incorrectly to exercise remediation rather than only the happy path.
+  await region.getByRole('radio').first().check();
+  await region.getByRole('button',{name:'Check answer'}).click();
+  await expect(region.getByRole('status')).toContainText('Let’s work through this');
+  while (await page.getByRole('button',{name:'Next question',exact:true}).isVisible()) {
+    await page.getByRole('button',{name:'Next question',exact:true}).click();
+    await region.getByRole('radio').first().check();
+    await region.getByRole('button',{name:'Check answer'}).click();
+  }
+  await page.getByRole('button',{name:'See results',exact:true}).click();
+  await expect(page.getByRole('region',{name:'Diagnostic results'})).toContainText('Diagnostic complete');
+  await page.getByRole('button',{name:'Retest missed concepts'}).click();
+  await expect(region).toBeVisible();
+  await expect(region.getByRole('button',{name:'Check answer'})).toBeDisabled();
+  await page.reload();
+  await expect(page.getByText('Saved learning progress', {exact:true})).toBeVisible();
+});

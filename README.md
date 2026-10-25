@@ -14,7 +14,7 @@ Optional targets:
 - **Web** — dev server on port **9002**
 - **Android** — Capacitor wrapper (`android/`)
 - **Desktop** — Electron wrapper (`electron/`)
-- **AI** — Genkit + local Ollama (optional)
+- **AI** — local Ollama (optional)
 
 ---
 
@@ -95,7 +95,7 @@ const nextConfig = {
 | `npm run android:sync`    | `build` + `cap sync android`                  |
 | `npm run android:apk`     | Sync web assets + `assembleRelease` APK       |
 | `npm run android:install` | Install release APK via `adb` (USB debugging) |
-| `npm run ai`              | Genkit dev UI (optional)                      |
+
 
 
 Helper scripts (PowerShell, run from repo root):
@@ -314,16 +314,14 @@ Do not open public issues for undisclosed vulnerabilities. Contact the maintaine
 
 ## AI features (optional)
 
-Natural-language assignment parsing, tutor, and portal AI helpers use **Genkit** and a local **Ollama** server:
+Optional explanations use a local Ollama service at `http://127.0.0.1:11434`.
+The default model is `budd-ie:latest`; configure `OLLAMA_MODEL` and
+`OLLAMA_BASE_URL` on the backend to use an installed model and service.
+Run `ollama serve` when needed. No model is downloaded automatically.
 
-- URL: `http://127.0.0.1:11434`
-- Model: `GenesisAi-Standalone` (per project docs)
-
-```bash
-npm run ai
-```
-
-AI is **not** required for calendar, assignments, or offline use. Without Ollama, AI routes fail gracefully or return empty results depending on the feature.
+Core planning, text import and supported diagnostic practice work without Ollama.
+General AI explanations require an available compatible model. Desktop includes
+the API backend; Android may connect to a separately hosted backend.
 
 ---
 
@@ -366,7 +364,7 @@ Browser / WebView / Electron
    Next.js UI (React)
         │
         ├── localStorage (assignments, settings)
-        ├── Optional: Ollama via Genkit (AI)
+        ├── Optional: Ollama via Ollama (AI)
         └── Optional: API routes when Next server is running
 ```
 
@@ -377,3 +375,17 @@ Capacitor Android loads the static site from `android/app/src/main/assets/public
 ## License
 
 Private project (`"private": true` in `package.json`). Add your license terms here if you open-source or distribute the app.
+
+
+## Personal Tutor and coursework import
+
+Open **Portal**, paste course lists and instructions, review every extracted type,
+and confirm import. Discussions and quizzes are saved alongside assignments; no
+deadline is invented when the source does not provide one. **Personal Tutor** uses
+that material for supported Java diagnostics or definition questions from study
+notes, checks answers, teaches missed concepts and offers application retests.
+Learning progress stays on the device. Optional Ollama chat supports broader
+explanations using the imported material and conversation history.
+
+See [release status](docs/RELEASE_STATUS.md) for verified checks and external
+blockers, and [release instructions](docs/RELEASING.md) for native packaging.

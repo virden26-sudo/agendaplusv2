@@ -49,24 +49,11 @@ export function parseGradesText(text: string) {
 }
 
 export function parseSyllabusText(text: string): ParsedAssignment[] {
-    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    const assignments: ParsedAssignment[] = [];
-
-    for (const line of lines) {
-        if (line.length < 8) continue;
-        if (/^(week|module|chapter|syllabus|course)/i.test(line)) continue;
-        try {
-            assignments.push(parseAssignmentHeuristically(line));
-        } catch {
-            // skip unparseable lines
-        }
-    }
-
-    if (assignments.length === 0 && text.trim()) {
-        assignments.push(parseAssignmentHeuristically(text.slice(0, 500)));
-    }
-
-    return assignments;
+    const parsed = parsePortalDataOnDevice(text);
+    return [...parsed.assignments,
+      ...parsed.quizzes.map(q => ({...q, details: `[Quiz / Exam] ${q.details || ''}`})),
+      ...parsed.discussions.map(d => ({task:d.title, course:d.course, dueDate:d.dueDate, details:`[Discussion] ${d.content || ''}`})),
+    ];
 }
 
 export function suggestStudySchedule(assignmentsJson: string) {

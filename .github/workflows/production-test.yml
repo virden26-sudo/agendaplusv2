@@ -1,5 +1,6 @@
 name: Production Build & Test
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:

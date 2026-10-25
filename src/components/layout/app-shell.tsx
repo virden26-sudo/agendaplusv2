@@ -1,4 +1,5 @@
 "use client";
+import {useCourseworkImport} from '@/hooks/use-coursework-import';
 
 import * as React from "react";
 import {
@@ -23,7 +24,6 @@ import {
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { v4 as uuidv4 } from "uuid";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -77,12 +77,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useAssignments } from "@/context/assignments-context";
 import { useGrades } from "@/context/grades-context";
 import { usePortal } from "@/context/portal-context";
-import { useQuizzes } from "@/context/quizzes-context";
 import { useUser } from "@/context/user-context";
 import { apiFetch } from "@/lib/api-config";
 import { readLocalStorage } from "@/lib/storage";
-import { sanitizeCourseName } from "@/lib/assignment-quality";
-import type { ParsedAssignment } from "@/ai/schemas/assignment";
 
 const AddAssignmentDialog = dynamic(() => import("../dashboard/add-assignment-dialog").then(mod => mod.AddAssignmentDialog), { ssr: false });
 const ImportSyllabusDialog = dynamic(() => import("../dashboard/import-syllabus-dialog").then(mod => mod.ImportSyllabusDialog), { ssr: false });
@@ -103,10 +100,9 @@ type PortalSyncResult = PortalSyncDialogResult;
 export function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const { toast } = useToast();
-    const { assignments, addMultipleAssignments, loading: assignmentsLoading } = useAssignments();
-    const { courses, setCourses } = useGrades();
-    const { announcements, discussions, addAnnouncements, addDiscussions, loading: portalLoading, isSyncing, setIsSyncing } = usePortal();
-    const { quizzes, loadData: loadQuizzes } = useQuizzes();
+    const { assignments, loading: assignmentsLoading } = useAssignments();
+    const { courses } = useGrades();
+    const { announcements, discussions, loading: portalLoading, isSyncing, setIsSyncing } = usePortal();
     const { user, setUser, portalUrl, setPortalUrl, isUserLoaded } = useUser();
 
     const [addAssignmentOpen, setAddAssignmentOpen] = React.useState(false);
@@ -223,140 +219,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
+    const importCoursework = useCourseworkImport();
     const processSyncResult = React.useCallback((result: PortalSyncResult) => {
-        console.log("AppShell: processSyncResult counts", {
-            assignments: result.assignments?.length ?? 0,
-            announcements: result.announcements?.length ?? 0,
-            discussions: result.discussions?.length ?? 0,
-            quizzes: result.quizzes?.length ?? 0,
-            grades: result.grades?.length ?? 0
-        });
-
-        const assignmentCount = result.assignments?.length ?? 0;
-        const quizCount = result.quizzes?.length ?? 0;
-        const discussionCount = result.discussions?.length ?? 0;
-        const announcementCount = result.announcements?.length ?? 0;
-        const gradeCount = result.grades?.length ?? 0;
-
-        const importedCount =
-            assignmentCount +
-            quizCount +
-            discussionCount +
-            announcementCount +
-            gradeCount;
-
-        const applyImport = () => {
-            if (!mountedRef.current) return;
-
-            if (assignmentCount > 0) {
-                console.log(`AppShell: Importing ${assignmentCount} assignments...`);
-                // Replace only the assignments for the course(s) being imported, keeping others
-                const importedCourses = new Set(
-                    (result.assignments || []).map((a) => sanitizeCourseName(a.course || "Course").toLowerCase())
-                );
-                const otherCoursesAssignments = assignments.filter(
-                    (a) => !importedCourses.has(sanitizeCourseName(a.course).toLowerCase())
-                );
-                const parsedOther: ParsedAssignment[] = otherCoursesAssignments.map((a) => ({
-                    task: a.title,
-                    dueDate: a.dueDate.toISOString().split("T")[0],
-                    course: a.course,
-                    details: a.details,
-                }));
-                const combined = [...parsedOther, ...(result.assignments || [])];
-                addMultipleAssignments(combined, { replace: true });
-            }
-
-            if (quizCount > 0) {
-                console.log(`AppShell: Importing ${quizCount} quizzes...`);
-                // Replace only the quizzes for the course(s) being imported, keeping others
-                const importedCourses = new Set(
-                    (result.quizzes || []).map((q) => sanitizeCourseName(q.course || "Course").toLowerCase())
-                );
-                const otherQuizzes = quizzes.filter(
-                    (q) => !importedCourses.has(sanitizeCourseName(q.course).toLowerCase())
-                );
-                const newQuizzesMapped = (result.quizzes || []).map((quiz) => {
-                    const dueIso =
-                        quiz.dueDate ||
-                        new Date(Date.now() + 21 * 86400000).toISOString().slice(0, 10);
-                    return {
-                        id: uuidv4(),
-                        title: quiz.task,
-                        course: quiz.course || "Course",
-                        dueDate: new Date(dueIso),
-                    };
-                });
-                loadQuizzes([...otherQuizzes, ...newQuizzesMapped]);
-            }
-
-            if (announcementCount > 0) {
-                addAnnouncements(
-                    (result.announcements || []).map((announcement) => ({
-                        id: uuidv4(),
-                        ...announcement,
-                        course: announcement.course || "General",
-                        content: announcement.content || "",
-                        important: Boolean((announcement as any).important),
-                        date: announcement.date ? new Date(announcement.date) : new Date(),
-                    }))
-                );
-            }
-
-            if (discussionCount > 0) {
-                addDiscussions(
-                    (result.discussions || []).map((discussion) => ({
-                        id: uuidv4(),
-                        ...discussion,
-                        course: discussion.course || "General",
-                        content: discussion.content || undefined,
-                        author: (discussion as any).author || undefined,
-                        postedDate: new Date(discussion.postedDate),
-                        dueDate: discussion.dueDate ? new Date(discussion.dueDate) : undefined,
-                    }))
-                );
-            }
-
-            if (gradeCount > 0) {
-                console.log(`AppShell: Adding ${gradeCount} grades...`);
-                const newCourses = result.grades!.map((g) => {
-                    const gradeStr = g.grade || "0";
-                    const gradeNum = parseFloat(gradeStr.replace(/[^0-9.]/g, ""));
-                    return {
-                        id: uuidv4(),
-                        name: g.course || "Extracted Course",
-                        grade: isNaN(gradeNum) ? 0 : gradeNum,
-                    };
-                });
-                // Merge with existing grades to prevent wiping out other courses
-                const merged = [...courses];
-                for (const newC of newCourses) {
-                    const idx = merged.findIndex(
-                        (c) => c.name.toLowerCase() === newC.name.toLowerCase()
-                    );
-                    if (idx >= 0) {
-                        merged[idx] = { ...merged[idx], grade: newC.grade };
-                    } else {
-                        merged.push(newC);
-                    }
-                }
-                setCourses(merged);
-            }
-
-            localStorage.setItem("lastAutoSync", Date.now().toString());
-
-            if (importedCount > 0) {
-                localStorage.setItem("portalSessionReady", "true");
-                setHasPersistentPortalSession(true);
-            } else {
-                console.warn("AppShell: Portal sync returned no items; session flag not set.");
-            }
-        };
-
-        React.startTransition(applyImport);
-
-        return importedCount;
-    }, [addMultipleAssignments, loadQuizzes, addAnnouncements, addDiscussions, setCourses, assignments, quizzes, courses]);
+        if (!mountedRef.current) return 0;
+        const count = importCoursework({assignments:result.assignments || [], quizzes:result.quizzes || [], discussions:result.discussions || [], announcements:result.announcements || [], grades:result.grades || []});
+        localStorage.setItem("lastAutoSync", Date.now().toString());
+        if (count > 0) {localStorage.setItem("portalSessionReady", "true"); setHasPersistentPortalSession(true);}
+        return count;
+    }, [importCoursework]);
 
     const processSyncResultWithBreakdown = React.useCallback((result: PortalSyncResult) => {
         const total = processSyncResult(result);
@@ -603,11 +473,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         text += "--- Upcoming Assignments ---\n";
         const upcoming = assignments
             .filter((assignment) => !assignment.completed)
-            .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+            .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
 
         if (upcoming.length > 0) {
             upcoming.forEach((assignment) => {
-                text += `- ${assignment.title} (${assignment.course}) - Due: ${assignment.dueDate.toLocaleDateString()}\n`;
+                text += `- ${assignment.title} (${assignment.course}) - Due: ${assignment.dueDate?.toLocaleDateString() || 'Unverified'}\n`;
             });
         } else {
             text += "No upcoming assignments. All caught up!\n";

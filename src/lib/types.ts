@@ -2,7 +2,7 @@ export type Assignment = {
   id: string;
   title: string;
   course: string;
-  dueDate: Date;
+  dueDate?: Date;
   completed: boolean;
   priority: 'low' | 'medium' | 'high';
   details?: string;

@@ -224,8 +224,8 @@ function groupByCourse(items: Assignment[]) {
 export function AssignmentsList() {
     const { assignments, toggleAssignment, updateAssignment, loading } = useAssignments();
 
-    const upcomingAssignments = assignments.filter(a => !a.completed).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-    const completedAssignments = assignments.filter(a => a.completed).sort((a, b) => b.dueDate.getTime() - a.dueDate.getTime());
+    const upcomingAssignments = assignments.filter(a => !a.completed).sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
+    const completedAssignments = assignments.filter(a => a.completed).sort((a, b) => (b.dueDate?.getTime() ?? Infinity) - (a.dueDate?.getTime() ?? Infinity));
     const upcomingByCourse = useMemo(() => groupByCourse(upcomingAssignments), [upcomingAssignments]);
     const completedByCourse = useMemo(() => groupByCourse(completedAssignments), [completedAssignments]);
 

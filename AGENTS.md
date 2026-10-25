@@ -1,7 +1,7 @@
 # Agenda+ development
 
 Agenda+ uses Next.js 16, TypeScript, and localStorage for core planner persistence.
-Optional AI and portal services run in a separate Next.js backend. Android and
+Optional Ollama AI and portal services run in a separate Next.js backend. Android and
 Electron consume the static frontend. Read docs/RELEASING.md for platform builds.
 
 Use Node 22 and npm 10. Install with `npm ci`; `.npmrc` records the legacy peer
@@ -20,3 +20,9 @@ Keep the root capacitor.config.ts authoritative; Electron sync generates its loc
 copy. Do not edit generated native configs to fight dependency toolchain changes.
 Never commit credentials, browser profiles, uploaded user files, keystores, or build
 outputs. Release signing must fail closed when credentials are missing.
+
+The AI adapter in src/ai/genkit.ts calls Ollama directly; its filename is retained
+for import compatibility. Do not reintroduce Genkit or a browser-side server SDK.
+Tutor diagnostics must preserve source references, grade actual practice answers,
+and never turn missing deadlines into guessed dates. Unknown dueDate is optional
+through storage, calendar filters and display components.

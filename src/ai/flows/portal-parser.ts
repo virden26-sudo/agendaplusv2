@@ -3,7 +3,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'zod';
 import { AssignmentSchema } from '@/ai/schemas/assignment';
 import { scrapePortal } from '@/lib/scraper';
-import { resolveAssignmentDueDates } from '@/lib/due-date-inference';
+
 import { countPortalItems, mergePortalParseResults, parsePortalTextHeuristically } from '@/lib/portal-text-parser';
 
 const getErrorMessage = (error: unknown) => {
@@ -227,7 +227,7 @@ const parsePortalFlow = ai.defineFlow(
     const cleanedText = textToParse.replace(/[^\S\r\n]+/g, ' ').trim();
     console.log(`BUDD-IE: Scraped portal text length: ${cleanedText.length} characters`);
 
-    if (cleanedText.length < 200) {
+    if (!cleanedText && !fileToParse) {
       throw new Error(
         "The portal page did not return enough text to parse. Complete login in the browser window, open your course home, then sync again."
       );
@@ -312,8 +312,8 @@ const parsePortalFlow = ai.defineFlow(
 
       return {
         ...merged,
-        assignments: resolveAssignmentDueDates(merged.assignments, textToParse, currentDate),
-        quizzes: resolveAssignmentDueDates(merged.quizzes, textToParse, currentDate),
+        assignments: merged.assignments,
+        quizzes: merged.quizzes,
       };
     } catch (error: unknown) {
       console.error("BUDD-IE portal parsing failed:", error);

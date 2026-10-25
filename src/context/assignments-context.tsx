@@ -7,7 +7,7 @@ import type { ParsedAssignment } from '@/ai/schemas/assignment';
 import { v4 as uuidv4 } from 'uuid';
 import { differenceInDays } from 'date-fns';
 import { isJunkCourseName, isObviousJunkTitle, sanitizeCourseName } from '@/lib/assignment-quality';
-import { resolveDueDateForImport, fallbackImportDueDate } from '@/lib/due-date-inference';
+
 
 interface AssignmentsContextType {
   assignments: Assignment[];
@@ -40,7 +40,7 @@ function loadStoredAssignments(): Assignment[] {
       .map((a: Assignment & { dueDate: string }) => ({
         ...a,
         course: sanitizeCourseName(a.course),
-        dueDate: new Date(a.dueDate),
+        dueDate: a.dueDate ? new Date(a.dueDate) : undefined,
       }))
       .filter((a: Assignment) => !isJunkCourseName(a.course) && !isObviousJunkTitle(a.course));
   } catch (error) {
@@ -94,20 +94,8 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
                 continue;
             }
 
-            const dueIso =
-                a.dueDate ||
-                resolveDueDateForImport(task, {
-                    dueDate: null,
-                    details: a.details,
-                    portalText: "",
-                    currentDate: new Date().toLocaleDateString("en-CA"),
-                }).dueDate ||
-                fallbackImportDueDate();
-
-            const dueDate = new Date(dueIso);
-            if (Number.isNaN(dueDate.getTime())) {
-                continue;
-            }
+            const dueDate = a.dueDate ? new Date(a.dueDate + (a.dueDate.length === 10 ? 'T12:00:00' : '')) : undefined;
+            if (dueDate && Number.isNaN(dueDate.getTime())) continue;
             built.push({
                 id: uuidv4(),
                 title: task,
@@ -115,7 +103,7 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
                 details: a.details || undefined,
                 dueDate,
                 completed: false,
-                priority: getPriority(dueDate),
+                priority: dueDate ? getPriority(dueDate) : 'medium',
             });
         }
 
@@ -132,13 +120,13 @@ export function AssignmentsProvider({ children }: { children: ReactNode }) {
 
         if (parsed.length === 0) return prev;
 
-        const existingMap = new Map(prev.map((a) => [`${a.title.toLowerCase()}|${a.course.toLowerCase()}`, a]));
-        const assignmentsToAdd = parsed.filter(
-            (a) => !existingMap.has(`${a.title.toLowerCase()}|${a.course.toLowerCase()}`)
-        );
-
-        if (assignmentsToAdd.length === 0) return prev;
-        return [...prev, ...assignmentsToAdd];
+        const existingMap = new Map(prev.map(a => [`${a.title.toLowerCase()}|${a.course.toLowerCase()}`,a]));
+        for (const item of parsed) {
+          const key = `${item.title.toLowerCase()}|${item.course.toLowerCase()}`;
+          const previous = existingMap.get(key);
+          existingMap.set(key, previous ? {...item, id:previous.id, completed:previous.completed, dueDate:item.dueDate || previous.dueDate, details:item.details || previous.details} : item);
+        }
+        return [...existingMap.values()];
     });
   };
 

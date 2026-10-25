@@ -1,5 +1,5 @@
 import {ai, buddIEGenerate} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 import {StudyPlanSchema} from '@/ai/schemas';
 
 const AssignmentInputSchema = z.object({

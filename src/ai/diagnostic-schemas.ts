@@ -1,0 +1,3 @@
+import {z} from 'zod';
+export const DiagnosticRequestSchema=z.object({sources:z.array(z.object({id:z.string().min(1).max(200),title:z.string().min(1).max(300),course:z.string().max(200),details:z.string().max(16000).optional(),kind:z.string().max(50)})).min(1).max(50),weakTopics:z.array(z.string().max(200)).max(50).optional()});
+export const DiagnosticQuestionsSchema=z.object({questions:z.array(z.object({topic:z.string().min(1),prompt:z.string().min(10),choices:z.array(z.string().min(1)).length(4),answer:z.number().int().min(0).max(3),explanation:z.string().min(10),sourceId:z.string().min(1)})).min(1).max(8)});

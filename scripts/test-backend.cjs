@@ -41,7 +41,21 @@ const assert = require('node:assert/strict');
     assert.equal(denied.status, 401);
     assert.equal(denied.headers.get('access-control-allow-origin'), '*');
     assert.equal((await fetch(`${base}/api/parse-assignment`, { headers: { 'X-Agenda-Token': 'integration-test-token' } })).status, 405);
-    console.log('Standalone backend starts outside the checkout; health and API authentication passed.');
+    const jsonHeaders = {'Content-Type':'application/json', 'X-Agenda-Token':'integration-test-token'};
+    const invalidTutor = await fetch(`${base}/api/tutor`, {method:'POST', headers:jsonHeaders, body:JSON.stringify({question:42})});
+    assert.equal(invalidTutor.status,400);
+    const invalidDiagnostic = await fetch(`${base}/api/diagnostic`, {method:'POST', headers:jsonHeaders, body:JSON.stringify({sources:[]})});
+    assert.equal(invalidDiagnostic.status,400);
+    const portal = await fetch(`${base}/api/parse-portal`, {method:'POST',headers:jsonHeaders,body:JSON.stringify({currentDate:'2026-10-24',portalText:'CSC262 Programming in Java\nAssignments\nAssignment 3: Arrays\nDue: October 28, 2026\nQuizzes\nQuiz 3: Methods\nDiscussions\nDiscussion 3: Inheritance\nExplain Java inheritance.'})});
+    assert.equal(portal.status,200);
+    const material=await portal.json();
+    assert.equal(material.assignments.length,1);
+    assert.equal(material.quizzes.length,1);
+    assert.equal(material.discussions.length,1);
+    assert.equal(material.quizzes[0].dueDate,null);
+    assert.match(material.discussions[0].content,/inheritance/);
+    console.log('Standalone backend starts outside checkout; API authentication, tutor/diagnostic validation and coursework extraction passed.');
+
   } finally {
     if (child && child.exitCode === null) {
       await new Promise((resolve) => { child.once('exit', resolve); child.kill(); });

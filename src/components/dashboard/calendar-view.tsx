@@ -22,7 +22,7 @@ export function CalendarView() {
     const assignmentsByDay = useMemo(() => {
         return weekDays.map(day => ({
             day,
-            assignments: assignments.filter(a => isSameDay(a.dueDate, day) && !a.completed)
+            assignments: assignments.filter(a => a.dueDate && isSameDay(a.dueDate, day) && !a.completed)
         }));
     }, [assignments, weekDays]);
 

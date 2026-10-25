@@ -54,3 +54,6 @@ android/keystore.properties
 *.keystore
 tsconfig.tsbuildinfo
 electron/capacitor.config.*
+
+/playwright-report/
+/test-results/

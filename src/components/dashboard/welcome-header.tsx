@@ -13,7 +13,7 @@ export function WelcomeHeader() {
   }
 
   const upcomingCount = loading ? 0 : assignments.filter(
-    (a) => !a.completed && a.dueDate > new Date()
+    (a) => !a.completed && a.dueDate && a.dueDate > new Date()
   ).length;
 
   const name = user.name ? user.name.split(" ")[0] : "";
