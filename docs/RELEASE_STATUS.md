@@ -34,3 +34,16 @@ the installer and packaged executable before upload. Ordinary PR Windows builds
 remain unsigned verification artifacts. Workflow structure and package-script
 checks do not establish successful Windows signing or native acceptance; the
 production CI job must still run with real credentials after Actions is available.
+
+## Cross-platform follow-up (October 26, 2026)
+
+- Desktop packaging now selects the host platform, with explicit Windows/Linux/macOS commands and native CI verification jobs. iOS has an SPM project setup command and macOS simulator build/launch workflow.
+- Corrected desktop window-show event registration and opening HTTP(S) portal links in the system browser.
+- Fixed an observed packaging failure: electron-builder omitted the backend's root node_modules. The resource rule now retains it, and afterPack rejects missing runtime/build files. A backend copied from the Linux package passed startup, authentication and coursework extraction checks outside the checkout.
+- Mobile service configuration now applies to readiness checks and requests. Added authenticated connection testing, preserved HTTP errors, and removed fabricated successful empty scans and phone-localhost discovery.
+- Chrome/Chromium/Edge discovery supports Windows, macOS and Linux. The production service launcher supports explicit network binding with required access tokens; development no longer waits for Ollama before opening the app.
+- 27 unit/DOM/adapter/platform tests, TypeScript, lint, Electron compilation, static frontend/backend production builds, workflow actionlint checks, and Linux AppImage packaging passed locally.
+- Android app debug APK and instrumentation APK compilation, app unit tests and app lint passed locally. The debug APK signature verifies. App-scoped instrumentation build tasks avoid unrelated generated plugin test APKs with conflicting legacy Kotlin dependencies. The existing Android package-context test now checks the actual application ID.
+- Android compilation is no longer blocked in this session: the configured network proxy allowed SDK and Maven dependency downloads. The earlier environment's network failure remains historical, not a present compiler finding.
+- Android emulator/device acceptance remains unrun here (no emulator/device). The emulator job must pass before signed Android releases. Chromium production tests were attempted but stopped at socket creation with Operation not permitted. Linux graphical smoke testing did not produce a passing result. Windows/macOS/iOS native execution, production signing, clean installation and live school-session acceptance remain unverified.
+- No public release or store submission was performed. See docs/PLATFORMS.md for commands and feature boundaries; mobile automatic portal extraction still requires the connected service and school sign-in on its computer.

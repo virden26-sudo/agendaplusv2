@@ -1,5 +1,7 @@
 # Agenda+ builds
 
+See [Run on each platform](docs/PLATFORMS.md) for current Windows, Linux, macOS, Android, iOS and web startup paths.
+
 See [Building and releasing](docs/RELEASING.md) for current Android and Electron commands, CI artifacts, signing, and release acceptance. The instructions below may describe older development workflows.
 
 # Agenda+

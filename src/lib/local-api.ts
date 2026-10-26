@@ -9,7 +9,7 @@ import type { TutorInput, TutorOutput } from "@/ai/schemas";
 import { AssignmentSchema, type ParsedAssignment } from "@/ai/schemas/assignment";
 import { apiFetch } from "@/lib/api-config";
 
-/** All Agenda+ features run on-device — no backend URL or PC required. */
+/** Text parsing and supported practice run locally; broader AI uses a connected service. */
 
 export function parsePortal(input: { portalText?: string; currentDate?: string }) {
     const text = input.portalText?.trim();

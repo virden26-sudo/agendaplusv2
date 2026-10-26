@@ -18,7 +18,7 @@
     "electron:start-live": "node ./live-runner.js",
     "electron:start": "npm run build && electron ./",
     "electron:pack": "npm run build && electron-builder build --dir -c ./electron-builder.config.json",
-    "electron:make": "npm run build && electron-builder build -c ./electron-builder.config.json --win --publish never",
+    "electron:make": "npm run build && electron-builder build -c ./electron-builder.config.json --publish never",
     "postinstall": "electron-builder install-app-deps",
     "test:smoke": "node tests/smoke.cjs"
   },

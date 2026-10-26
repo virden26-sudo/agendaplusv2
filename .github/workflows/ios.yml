@@ -1,0 +1,42 @@
+name: iOS simulator verification
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  simulator:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run ios:sync
+      - name: Build iOS simulator app
+        run: >-
+          xcodebuild -project ios/App/App.xcodeproj -scheme App
+          -configuration Debug -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath ios/build
+          CODE_SIGNING_ALLOWED=NO MARKETING_VERSION=0.1.1 CURRENT_PROJECT_VERSION=2 build
+      - name: Launch in iOS simulator
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for a in d["devices"].values() for x in a if "iPhone" in x["name"]))')
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" ios/build/Build/Products/Debug-iphonesimulator/App.app
+          xcrun simctl launch "$DEVICE" com.example.agendaplus
+          xcrun simctl io "$DEVICE" screenshot ios/simulator.png
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agenda-ios-simulator-verification
+          path: |
+            ios/build/Build/Products/Debug-iphonesimulator/App.app
+            ios/simulator.png
+          if-no-files-found: error

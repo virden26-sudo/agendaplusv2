@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'agenda-backend-test-'));
   let child;
   try {
-    fs.cpSync(path.resolve(__dirname, '../electron/backend'), directory, { recursive: true, dereference: true });
+    fs.cpSync(process.env.AGENDA_BACKEND_DIR || path.resolve(__dirname, '../electron/backend'), directory, { recursive: true, dereference: true });
     const port = await new Promise((resolve, reject) => {
       const server = net.createServer();
       server.on('error', reject);
@@ -37,6 +37,10 @@ const assert = require('node:assert/strict');
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     assert.ok(ready, `Standalone backend did not start: ${logs}`);
+    assert.equal((await fetch(`${base}/api/connection`)).status, 401);
+    const connected = await fetch(`${base}/api/connection`, { headers: { 'X-Agenda-Token': 'integration-test-token' } });
+    assert.equal(connected.status, 200);
+    assert.equal((await connected.json()).service, 'Agenda+');
     const denied = await fetch(`${base}/api/parse-assignment`);
     assert.equal(denied.status, 401);
     assert.equal(denied.headers.get('access-control-allow-origin'), '*');

@@ -6,7 +6,7 @@ import {
 } from '@capacitor-community/electron';
 import { watch } from 'fs';
 import type { MenuItemConstructorOptions } from 'electron';
-import { app, BrowserWindow, Menu, MenuItem, nativeImage, Tray, session } from 'electron';
+import { app, BrowserWindow, Menu, MenuItem, nativeImage, Tray, session, shell } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import electronServe from 'electron-serve';
 import windowStateKeeper from 'electron-window-state';
@@ -151,6 +151,25 @@ export class ElectronCapacitorApp {
     // Setup the main manu bar at the top of our window.
     Menu.setApplicationMenu(Menu.buildFromTemplate(this.AppMenuBarMenuTemplate));
 
+    // When the web app is loaded we hide the splashscreen if needed and show the mainwindow.
+    this.MainWindow.webContents.on('dom-ready', () => {
+      console.log('BUDD-IE: dom-ready event triggered');
+      if (this.CapacitorFileConfig.electron?.splashScreenEnabled) {
+        this.SplashScreen.getSplashWindow().hide();
+      }
+      if (!this.CapacitorFileConfig.electron?.hideMainWindowOnLaunch) {
+        console.log('BUDD-IE: Showing main window');
+        this.MainWindow.show();
+      }
+      setTimeout(() => {
+        if (electronIsDev) {
+          console.log('BUDD-IE: Opening DevTools');
+          this.MainWindow.webContents.openDevTools();
+        }
+        CapElectronEventEmitter.emit('CAPELECTRON_DeeplinkListenerInitialized', '');
+      }, 400);
+    });
+
     // If the splashscreen is enabled, show it first while the main window loads then switch it out for the main window, or just load the main window from the start.
     if (this.CapacitorFileConfig.electron?.splashScreenEnabled) {
       this.SplashScreen = new CapacitorSplashScreen({
@@ -170,6 +189,9 @@ export class ElectronCapacitorApp {
     // Security
     this.MainWindow.webContents.setWindowOpenHandler((details) => {
       if (new URL(details.url).protocol !== `${this.customScheme}:`) {
+        if (['https:', 'http:'].includes(new URL(details.url).protocol)) {
+          void shell.openExternal(details.url).catch(error => console.error('Could not open browser:', error));
+        }
         return { action: 'deny' };
       } else {
         return { action: 'allow' };
@@ -185,24 +207,7 @@ export class ElectronCapacitorApp {
     // Link electron plugins into the system.
     setupCapacitorElectronPlugins();
 
-    // When the web app is loaded we hide the splashscreen if needed and show the mainwindow.
-    this.MainWindow.webContents.on('dom-ready', () => {
-      console.log('BUDD-IE: dom-ready event triggered');
-      if (this.CapacitorFileConfig.electron?.splashScreenEnabled) {
-        this.SplashScreen.getSplashWindow().hide();
-      }
-      if (!this.CapacitorFileConfig.electron?.hideMainWindowOnLaunch) {
-        console.log('BUDD-IE: Showing main window');
-        this.MainWindow.show();
-      }
-      setTimeout(() => {
-        if (electronIsDev) {
-          console.log('BUDD-IE: Opening DevTools');
-          this.MainWindow.webContents.openDevTools();
-        }
-        CapElectronEventEmitter.emit('CAPELECTRON_DeeplinkListenerInitialized', '');
-      }, 400);
-    });
+
   }
 }
 
@@ -230,7 +235,7 @@ export function setupContentSecurityPolicy(customScheme: string, backendPort = 3
     const devSources = electronIsDev ? " devtools://* 'unsafe-eval'" : '';
     const csp = [
       `default-src ${customScheme}://* 'unsafe-inline'${devSources} data: https://fonts.googleapis.com https://fonts.gstatic.com`,
-      `connect-src ${customScheme}://* http://127.0.0.1:${backendPort} http://127.0.0.1:11434${electronIsDev ? ' http://localhost:3000 ws://localhost:3000' : ''}`,
+      `connect-src ${customScheme}://* https: http://127.0.0.1:* http://localhost:* http://[::1]:*${electronIsDev ? ' ws://localhost:3000' : ''}`,
       `img-src ${customScheme}://* data: https://picsum.photos https://fastly.picsum.photos`,
       `style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com`,
       `font-src ${customScheme}://* data: https://fonts.gstatic.com`,

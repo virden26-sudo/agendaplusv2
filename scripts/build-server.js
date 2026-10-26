@@ -12,5 +12,9 @@ if (!fs.existsSync(path.join(standalone, 'server.js'))) throw new Error('Standal
 const destination = path.join(root, 'electron', 'backend');
 fs.rmSync(destination, { recursive: true, force: true });
 fs.cpSync(standalone, destination, { recursive: true });
+// Runtime credentials belong to the service environment, never to an installer.
+for (const name of fs.readdirSync(destination)) {
+  if (name === '.env' || name.startsWith('.env.')) fs.rmSync(path.join(destination, name), { force: true });
+}
 fs.cpSync(path.join(root, '.next-server', 'static'), path.join(destination, '.next-server', 'static'), { recursive: true });
 fs.cpSync(path.join(root, 'public'), path.join(destination, 'public'), { recursive: true });

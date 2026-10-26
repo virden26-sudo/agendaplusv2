@@ -5,7 +5,7 @@ let sharedBrowser: any = null;
 let sharedBrowserPromise: Promise<any> | null = null;
 let sharedBrowserVisible = false;
 const SHARED_BROWSER_PROFILE_DIR = process.env.AGENDA_PORTAL_PROFILE_DIR
-    || `${process.cwd()}\\.portal-browser-profile`;
+    || `${process.cwd()}/.portal-browser-profile`;
 
 // Mutex to serialize all scraping missions and prevent concurrent browser launches
 let scraperMutex = Promise.resolve();
@@ -477,23 +477,8 @@ async function runScrapingMission(
     const fs = await import('fs');
     const isOktaUrl = (candidateUrl: string) => /(^https?:\/\/)?[^/]*okta\.com/i.test(candidateUrl);
 
-    function getExecutablePath() {
-        if (process.platform === 'win32') {
-            const paths = [
-                'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-                'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-                'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-                'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
-            ];
-            for (const p of paths) {
-                if (fs.existsSync(p)) return p;
-            }
-            throw new Error('No Chrome or Edge installation found.');
-        }
-        return '/usr/bin/google-chrome';
-    }
-
-    const executablePath = getExecutablePath();
+    const { findBrowserExecutable } = await import('@/lib/browser-runtime');
+    const executablePath = findBrowserExecutable();
     const sessionReady = Boolean(options?.sessionReady);
     const mode = options?.mode;
     const isSilent = mode === "startup" || mode === "background";

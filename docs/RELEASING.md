@@ -1,5 +1,7 @@
 # Building and releasing Agenda+
 
+See [platform setup and verification](PLATFORMS.md) for desktop, mobile and standalone service startup.
+
 ## Reproducible environment
 
 Use Node 22 (`.nvmrc`), npm 10, and `npm ci` at the repository root.
@@ -22,7 +24,7 @@ baseline: https://capacitorjs.com/docs/updating/8-0 .
 - `npm run android:debug`: export, sync, and build the debug APK.
 - `npm run android:apk`: export, sync, and build the signed release APK.
 - `npm run android:aab`: export, sync, and build the signed release AAB.
-- `cd android` then `./gradlew testDebugUnitTest lintDebug`: run Android checks
+- `cd android` then `./gradlew :app:testDebugUnitTest :app:lintDebug`: run Android checks
   (`gradlew.bat` on Windows).
 
 The existing Android application ID `com.example.agendaplus` is deliberately
@@ -47,7 +49,7 @@ configure these secrets in the `production` GitHub environment, then manually ru
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-That job builds APK/AAB, runs release lint, verifies the APK signature, and uploads
+The debug/emulator jobs must pass first. The release job builds APK/AAB, runs release lint, verifies the APK signature, and uploads
 artifacts. It does not submit to Google Play. Increment versionCode and versionName
 in `android/app/build.gradle` before subsequent store uploads.
 

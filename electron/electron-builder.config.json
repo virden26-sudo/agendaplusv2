@@ -24,17 +24,19 @@
     "target": "dmg"
   },
   "asar": true,
+  "afterPack": "./scripts/verify-packaged-backend.cjs",
   "extraResources": [
     {
-      "from": "backend",
-      "to": "backend",
+      "from": ".",
+      "to": ".",
       "filter": [
-        "**/*"
+        "backend/**/*"
       ]
     }
   ],
   "linux": {
     "target": "AppImage",
-    "category": "Education"
+    "category": "Education",
+    "executableName": "agenda-plus"
   }
 }

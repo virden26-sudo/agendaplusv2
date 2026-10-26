@@ -39,20 +39,57 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, test, and lint Android
         working-directory: android
-        run: ./gradlew assembleDebug testDebugUnitTest lintDebug --no-daemon
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:testDebugUnitTest :app:lintDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: agenda-android-debug
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
+        with:
+          name: agenda-android-instrumentation
+          path: android/app/build/outputs/apk/androidTest/debug/*.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: android-reports
           path: android/app/build/reports/
+  emulator:
+    needs: debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: agenda-android-debug
+          path: apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: agenda-android-instrumentation
+          path: test-apk
+      - name: Enable KVM access
+        run: sudo chmod a+rw /dev/kvm
+      - name: Launch and test installed APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: |
+            adb install -r apk/app-debug.apk
+            adb install -r test-apk/app-debug-androidTest.apk
+            adb shell am instrument -w com.example.agendaplus.test/androidx.test.runner.AndroidJUnitRunner > instrumentation.txt
+            cat instrumentation.txt
+            python3 -c "import pathlib,re; text=pathlib.Path('instrumentation.txt').read_text(); assert re.search(r'OK \(\d+ tests?\)', text), 'Android instrumentation did not pass'"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-instrumentation-result
+          path: instrumentation.txt
   release:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'workflow_call') && inputs.release
-    needs: debug
+    needs: [debug, emulator]
     runs-on: ubuntu-latest
     environment: production
     steps:
