@@ -13,7 +13,62 @@ jobs:
   source:
     uses: ./.github/workflows/production-test.yml
   windows:
-    uses: ./.github/workflows/electron.yml
+    runs-on: windows-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check production Windows signing credentials
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          if (!$env:WIN_CSC_LINK -or !$env:WIN_CSC_KEY_PASSWORD) {
+            throw "Production Windows signing credentials are required."
+          }
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+      - run: npm ci
+      - run: npm --prefix electron ci
+      - name: Build signed Windows installer
+        shell: pwsh
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm run electron:build:signed
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - run: npm run test:backend
+      - name: Test packaged application and backend
+        run: npm --prefix electron run test:smoke
+      - name: Verify Windows signatures
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem electron/dist/*.exe)
+          if ($installers.Count -eq 0) {
+            throw "Windows installer missing."
+          }
+          $files = @($installers.FullName) +
+            @("electron/dist/win-unpacked/Agenda+.exe")
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $file
+            if ($signature.Status -ne 'Valid') {
+              throw "Invalid or absent signature: $file"
+            }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agenda-windows-installer
+          path: electron/dist/*.exe
+          if-no-files-found: error
   android:
     uses: ./.github/workflows/android.yml
     with:

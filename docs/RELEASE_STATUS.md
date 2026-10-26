@@ -25,3 +25,12 @@ TypeScript checks, ESLint, 18 unit/DOM/AI-adapter regression tests, frontend exp
 - No connected Android device, clean Windows account, production Android keystore, Windows signing certificate or live school session was available for final acceptance.
 
 Run the existing Android, Windows and production workflows when GitHub Actions is available. Configure production Android signing secrets before running `Verified public preview`; it refuses to publish if any required build fails or an installer is missing. A billing fix or signing material is not a source-code change and cannot be manufactured by this PR.
+
+## Windows publication signing gate
+
+The public-preview Windows job now requires production signing credentials, runs
+packaging with forceCodeSigning enabled, and verifies Authenticode signatures on
+the installer and packaged executable before upload. Ordinary PR Windows builds
+remain unsigned verification artifacts. Workflow structure and package-script
+checks do not establish successful Windows signing or native acceptance; the
+production CI job must still run with real credentials after Actions is available.

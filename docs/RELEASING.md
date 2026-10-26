@@ -72,9 +72,36 @@ preload IPC, and backend readiness. CI runs both after building the installer.
 The automated smoke test launches the unpacked packaged executable; manually test
 the NSIS install/uninstall flow on a clean Windows machine before publishing.
 
-CI installers are unsigned verification artifacts. Configure and validate Windows
-code signing before public distribution. No certificate or store submission
-credentials are created by this change. macOS/Linux packaging remains unverified.
+The ordinary Electron Windows Build workflow produces unsigned verification artifacts.
+The Verified public preview workflow builds Windows separately in the production
+environment and requires signing. Configure these production environment secrets:
+
+- `WIN_CSC_LINK`: the base64-encoded production Windows code-signing certificate.
+- `WIN_CSC_KEY_PASSWORD`: the certificate password.
+
+`npm run electron:build:signed` runs the normal frontend/backend packaging pipeline
+with electron-builder's `forceCodeSigning=true`. Missing credentials must fail;
+unsigned output is never a successful public-preview build. Before uploading,
+the workflow requires valid Authenticode signatures on every NSIS installer and
+`electron/dist/win-unpacked/Agenda+.exe`, and runs backend and packaged-app checks.
+Unsigned PR verification remains available through Electron Windows Build.
+
+On Windows with signing credentials configured in the environment, validate with:
+
+```powershell
+npm ci
+npm --prefix electron ci
+npm run electron:build:signed
+npm run test:backend
+npm --prefix electron run test:smoke
+Get-ChildItem electron/dist/*.exe | Get-AuthenticodeSignature
+Get-AuthenticodeSignature -LiteralPath 'electron/dist/win-unpacked/Agenda+.exe'
+```
+
+Both signature checks must report Valid. In a separate shell without signing
+credentials or an available signing identity, the signed build must fail.
+No certificate or store submission credentials are created by this change.
+macOS/Linux packaging remains unverified.
 
 ## Release acceptance
 

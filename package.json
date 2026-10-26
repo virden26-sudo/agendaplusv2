@@ -27,7 +27,8 @@
     "android:debug": "node scripts/android-build.js apk-debug",
     "android:aab": "node scripts/android-build.js bundle-release",
     "test": "npm run test:unit",
-    "test:backend": "node scripts/test-backend.cjs"
+    "test:backend": "node scripts/test-backend.cjs",
+    "electron:build:signed": "npm run electron:sync && npm run build:server && npm --prefix electron run electron:make -- -c.forceCodeSigning=true"
   },
   "dependencies": {
     "@capacitor-community/electron": "^5.0.1",
