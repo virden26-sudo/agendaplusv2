@@ -474,8 +474,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             } else {
                 console.error("AppShell: Portal sync failed", error);
                 toast({
-                    title: "Manual Sync Suggested",
-                    description: "Automatic scan failed. You can use 'Manual Sync' in the Portal tab to paste data directly!",
+                    variant: "destructive",
+                    title: "Brightspace sync failed",
+                    description: error instanceof Error
+                        ? error.message.slice(0, 240)
+                        : "Agenda+ could not synchronize your portal. Your coursework has not been verified.",
                 });
             }
         } finally {
