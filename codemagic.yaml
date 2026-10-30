@@ -9,9 +9,20 @@ workflows:
     scripts:
       - name: Install dependencies
         script: npm ci
-      - name: Install Android SDK platform
+      - name: Configure Android SDK
         script: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          set -e
+          export ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f 2>/dev/null | head -n 1)"
+          fi
+          if [ -z "$SDKMANAGER" ] || [ ! -f "$SDKMANAGER" ]; then
+            echo "Android SDK command-line tools missing under $ANDROID_HOME"
+            exit 1
+          fi
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-36" "build-tools;36.0.0"
       - name: Sync Android project
         script: npm run android:sync
       - name: Build debug APK
