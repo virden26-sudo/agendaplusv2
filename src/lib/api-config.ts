@@ -303,13 +303,10 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
         }
     }
 
-    // SILENT FAIL: If we are on a mobile device and can't reach the computer,
-    // return a successful but "offline" response so the app can stay in standalone mode.
+    // An unreachable backend is an error, never a successful empty sync.
+    // Android requires a reachable API host; localhost on the device is not the PC.
     if (isStaticCapacitorHost()) {
-        return new Response(JSON.stringify({ offline: true, assignments: [], announcements: [], discussions: [], quizzes: [], grades: [] }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        throw new Error(`Agenda+ cannot reach its sync backend. Connect the Android app to a reachable Agenda+ API server. Attempts: ${failures.join('; ')}`);
     }
 
     throw new Error(`Agenda+ could not reach its local API. Run "npm run dev" from your PC.`);
