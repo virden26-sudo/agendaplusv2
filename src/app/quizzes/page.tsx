@@ -12,7 +12,7 @@ import {NaturalLanguageAdd} from "@/components/assignments/natural-language-add"
 export default function QuizzesPage() {
     const {quizzes, loading, addQuiz} = useQuizzes();
 
-    const upcomingQuizzes = quizzes.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    const upcomingQuizzes = [...quizzes].sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
 
     const isOverdue = (date: Date) => new Date(date) < new Date() && !isToday(date);
 
@@ -61,9 +61,9 @@ export default function QuizzesPage() {
                                     <TableRow key={quiz.id}>
                                         <TableCell className="font-medium">{quiz.title}</TableCell>
                                         <TableCell>{quiz.course}</TableCell>
-                                        <TableCell>{format(new Date(quiz.dueDate), 'PPP')}</TableCell>
+                                        <TableCell>{quiz.dueDate ? format(quiz.dueDate, 'PPP') : 'Unverified'}</TableCell>
                                         <TableCell className="text-right">
-                                            {isOverdue(quiz.dueDate) ? (
+                                            {!quiz.dueDate ? (<Badge variant="outline">Unverified</Badge>) : isOverdue(quiz.dueDate) ? (
                                                 <Badge variant="destructive">Overdue</Badge>
                                             ) : isToday(quiz.dueDate) ? (
                                                 <Badge variant="default">Due Today</Badge>

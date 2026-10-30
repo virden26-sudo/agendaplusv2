@@ -6,10 +6,10 @@ import {
 } from "@/lib/client-ai-fallbacks";
 import { parsePortalDataOnDevice } from "@/lib/portal-sync-client";
 import type { TutorInput, TutorOutput } from "@/ai/schemas";
-import type { ParsedAssignment } from "@/ai/schemas/assignment";
+import { AssignmentSchema, type ParsedAssignment } from "@/ai/schemas/assignment";
 import { apiFetch } from "@/lib/api-config";
 
-/** All Agenda+ features run on-device — no backend URL or PC required. */
+/** Text parsing and supported practice run locally; broader AI uses a connected service. */
 
 export function parsePortal(input: { portalText?: string; currentDate?: string }) {
     const text = input.portalText?.trim();
@@ -33,8 +33,9 @@ export async function parseAssignmentText(assignmentText: string): Promise<Parse
         });
         if (response && response.ok) {
             const data = await response.json();
-            if (data && !data.error) {
-                return data;
+            const parsed = AssignmentSchema.safeParse(data);
+            if (!data?.offline && parsed.success && parsed.data.task.trim()) {
+                return parsed.data;
             }
         }
     } catch (e) {
@@ -48,24 +49,11 @@ export function parseGradesText(text: string) {
 }
 
 export function parseSyllabusText(text: string): ParsedAssignment[] {
-    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    const assignments: ParsedAssignment[] = [];
-
-    for (const line of lines) {
-        if (line.length < 8) continue;
-        if (/^(week|module|chapter|syllabus|course)/i.test(line)) continue;
-        try {
-            assignments.push(parseAssignmentHeuristically(line));
-        } catch {
-            // skip unparseable lines
-        }
-    }
-
-    if (assignments.length === 0 && text.trim()) {
-        assignments.push(parseAssignmentHeuristically(text.slice(0, 500)));
-    }
-
-    return assignments;
+    const parsed = parsePortalDataOnDevice(text);
+    return [...parsed.assignments,
+      ...parsed.quizzes.map(q => ({...q, details: `[Quiz / Exam] ${q.details || ''}`})),
+      ...parsed.discussions.map(d => ({task:d.title, course:d.course, dueDate:d.dueDate, details:`[Discussion] ${d.content || ''}`})),
+    ];
 }
 
 export function suggestStudySchedule(assignmentsJson: string) {

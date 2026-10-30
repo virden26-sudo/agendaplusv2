@@ -1,3 +1,4 @@
+import {teachFromSources} from "./tutor-engine";
 import { parsePortalTextHeuristically as _parsePortalTextHeuristically } from "./portal-text-parser";
 import type { Assignment as ParsedAssignment } from "@/ai/schemas/assignment";
 
@@ -95,29 +96,13 @@ export function buildStudyScheduleHeuristic(
     };
 }
 
-export function tutorReplyHeuristic(input: {
-    question: string;
-    context?: {
-        assignments?: Array<{ title?: string; course?: string; dueDate?: Date | string }>;
-        currentDate?: string;
-    };
-}): { response: string } {
-    const upcoming = input.context?.assignments?.length ?? 0;
-    const question = input.question.trim();
-
-    let response =
-        "I'm running entirely on your device — no computer or server setup needed.\n\n";
-
-    if (upcoming > 0) {
-        response += `You have **${upcoming}** upcoming assignment(s) in Agenda+. `;
-    }
-
-    response +=
-        `For your question: *${question.slice(0, 200)}*\n\n` +
-        "Open your **Assignments** and **Calendar** tabs for due dates. " +
-        "For course-specific help, check the material in your school portal or ask your instructor.";
-
-    return { response };
+export function tutorReplyHeuristic(input: import('@/ai/schemas').TutorInput): { response: string } {
+    const sources = [
+      ...input.context.assignments.map(a => ({...a, kind: 'Assignment'})),
+      ...input.context.quizzes.map(q => ({...q, kind: 'Quiz'})),
+      ...(input.context.discussions || []).map(d => ({...d, details: d.content, kind: 'Discussion'})),
+    ];
+    return {response: teachFromSources(input.question, sources)};
 }
 
 export function parseGradesHeuristically(text: string) {

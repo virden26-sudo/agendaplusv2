@@ -1,46 +1,28 @@
-# AGENTS.md
+# Agenda+ development
 
-## Cursor Cloud specific instructions
+Agenda+ uses Next.js 16, TypeScript, and localStorage for core planner persistence.
+Optional Ollama AI and portal services run in a separate Next.js backend. Android and
+Electron consume the static frontend. Read docs/RELEASING.md for platform builds.
 
-### Project Overview
+Use Node 22 and npm 10. Install with `npm ci`; `.npmrc` records the legacy peer
+resolution needed by the current dependency graph. Electron has its own lockfile:
+`npm --prefix electron ci`.
 
-Agenda+ is a Next.js 16 student planner web app (TypeScript, Tailwind CSS, shadcn/ui). All data is stored client-side in `localStorage` — there is no database or backend persistence layer.
+- `npm run dev`: start development services on port 3000.
+- `npm run test:unit`, `npm run typecheck`, `npm run lint`: source checks.
+- `npm run build`: static export in out/, built from an isolated copy without API routes.
+- `npm run test:prod`: Playwright production tests (build first; install Chromium).
+- `npm run build:server`, `npm run test:backend`: standalone backend and integration check.
+- `npm run android:debug`: Android debug build (JDK 21 and SDK 36 required).
+- `npm run electron:build`: Windows installer with packaged backend.
 
-### Running the Dev Server
+Keep the root capacitor.config.ts authoritative; Electron sync generates its local
+copy. Do not edit generated native configs to fight dependency toolchain changes.
+Never commit credentials, browser profiles, uploaded user files, keystores, or build
+outputs. Release signing must fail closed when credentials are missing.
 
-```bash
-npm run dev
-```
-
-Starts on port **3000**. Uses Webpack bundler explicitly.
-
-### Key Commands
-
-| Task | Command |
-|------|---------|
-| Dev server | `npm run dev` (port 3000) |
-| Lint | `npm run lint` |
-| Typecheck | `npm run typecheck` |
-| Build | `npm run build` |
-| Genkit AI dev UI | `npm run ai` |
-
-### Known Issues
-
-- The lockfile (`package-lock.json`) may be out of sync with `package.json`. Use `npm install --legacy-peer-deps` instead of `npm ci`.
-- `react-markdown` is imported in `src/app/tutor/page.tsx` but not listed in `package.json`, causing a typecheck error. This is a pre-existing issue.
-- The AI features (natural-language assignment input, tutor) require a local Ollama server at `http://127.0.0.1:11434` with model `GenesisAi-Standalone`. These are not required for the core app functionality.
-- Next.js warns about a duplicate page: `src/app/page.jsx` and `src/app/page.tsx` both resolve to `/`. This is cosmetic.
-
-### Playwright E2E Tests
-
-The Playwright config (`playwright.config.ts`) expects (note that these scripts are currently missing from `package.json`):
-- `npm run prod:build` and `npm run prod:serve` scripts (for production static build testing)
-- Base URL: `http://localhost:3000` (production mode)
-- Install browsers first: `npx playwright install --with-deps chromium`
-
-### Architecture Notes
-
-- Client-side only (localStorage for data persistence)
-- No external database or API keys needed for core functionality
-- AI features use Genkit + Ollama (optional, not required to run the app)
-- Electron and Android/Capacitor wrappers exist but are optional
+The AI adapter in src/ai/genkit.ts calls Ollama directly; its filename is retained
+for import compatibility. Do not reintroduce Genkit or a browser-side server SDK.
+Tutor diagnostics must preserve source references, grade actual practice answers,
+and never turn missing deadlines into guessed dates. Unknown dueDate is optional
+through storage, calendar filters and display components.

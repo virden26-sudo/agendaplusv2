@@ -1,4 +1,4 @@
-import {z} from 'genkit';
+import {z} from 'zod';
 
 export const AssignmentSchema = z.object({
     title: z.string().describe('The title of the assignment.'),
@@ -43,15 +43,17 @@ const TutorAssignmentSchema = z.object({
     id: z.string(),
     title: z.string(),
     course: z.string(),
-    dueDate: z.date(),
-    completed: z.boolean(),
+    dueDate: z.coerce.date().optional(),
+    completed: z.boolean().optional(),
+    details: z.string().optional(),
 });
 
 const TutorQuizSchema = z.object({
+    details: z.string().optional(),
     id: z.string(),
     title: z.string(),
     course: z.string(),
-    dueDate: z.date(),
+    dueDate: z.coerce.date().optional(),
 });
 
 const TutorCourseSchema = z.object({
@@ -64,6 +66,8 @@ export const TutorInputSchema = z.object({
     question: z.string().describe("The student's question for the AI tutor."),
     context: z.object({
         assignments: z.array(TutorAssignmentSchema).describe("The student's list of upcoming assignments."),
+        discussions: z.array(z.object({id: z.string(), title: z.string(), course: z.string(), content: z.string().optional()})).optional(),
+        history: z.array(z.object({role: z.enum(["student", "tutor"]), text: z.string()})).max(20).optional(),
         quizzes: z.array(TutorQuizSchema).describe("The student's list of upcoming quizzes and exams."),
         courses: z.array(TutorCourseSchema).describe("The student's list of courses and their current grades."),
         currentDate: z.string().describe("Today's date, for context."),

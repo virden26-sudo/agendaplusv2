@@ -25,7 +25,7 @@ import {
     Trash2,
     Upload
 } from "lucide-react";
-import {useAssignments} from "@/context/assignments-context";
+import {useCourseworkImport} from "@/hooks/use-coursework-import";
 import {parseSyllabusText} from "@/lib/local-api";
 import type {ParsedAssignment} from "@/ai/schemas/assignment";
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow,} from "@/components/ui/table";
@@ -42,7 +42,7 @@ type Step = 'input' | 'parsing' | 'review';
 
 export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogProps) {
     const {toast} = useToast();
-    const {addMultipleAssignments} = useAssignments();
+    const importCoursework = useCourseworkImport();
 
     const [step, setStep] = useState<Step>('input');
     const [isParsing, setIsParsing] = useState(false);
@@ -144,10 +144,15 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
 
     const handleConfirmImport = () => {
         if (reviewData.length > 0) {
-            addMultipleAssignments(reviewData);
+            importCoursework({
+              assignments: reviewData.filter(a => !/^\[(Discussion|Quiz \/ Exam)\]/.test(a.details || '')),
+              quizzes: reviewData.filter(a => /^\[Quiz \/ Exam\]/.test(a.details || '')),
+              discussions: reviewData.filter(a => /^\[Discussion\]/.test(a.details || '')).map(a => ({title:a.task,course:a.course,content:a.details,dueDate:a.dueDate,postedDate:new Date().toISOString().slice(0,10)})),
+              announcements: [], grades: [],
+            });
             toast({
                 title: "Success!",
-                description: `${reviewData.length} assignments have been added to your schedule.`,
+                description: `${reviewData.length} coursework items have been imported.`,
             });
             handleClose(false);
         }
@@ -244,7 +249,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
                                     <p className="mb-2 text-sm">
                                         <span className="font-semibold text-primary">Click to upload syllabus</span>
                                     </p>
-                                    <p className="text-xs text-muted-foreground">PDF, DOCX, or TXT (Max 10MB)</p>
+                                    <p className="text-xs text-muted-foreground">TXT file or pasted text</p>
                                 </div>
                                 <input
                                     ref={fileInputRef}
@@ -252,7 +257,7 @@ export function ImportSyllabusDialog({open, onOpenChange}: ImportSyllabusDialogP
                                     type="file"
                                     className="hidden"
                                     onChange={handleFileChange}
-                                    accept=".pdf,.doc,.docx,.txt"
+                                    accept=".txt,text/plain"
                                 />
                             </div>
                         </TabsContent>

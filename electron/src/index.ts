@@ -1,408 +1,137 @@
 import type { CapacitorElectronConfig } from '@capacitor-community/electron';
-import { getCapacitorElectronConfig, setupElectronDeepLinking } from '@capacitor-community/electron';
-import type { MenuItemConstructorOptions } from 'electron';
-import { app, MenuItem, ipcMain } from 'electron';
-import electronIsDev from 'electron-is-dev';
-import unhandled from 'electron-unhandled';
-import { spawn, exec } from 'child_process';
+import { getCapacitorElectronConfig } from '@capacitor-community/electron';
+import { app, ipcMain } from 'electron';
+import { spawn, execFile, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as net from 'net';
-import * as os from 'os';
-
+import * as http from 'http';
+import { randomBytes } from 'crypto';
 import { ElectronCapacitorApp, setupContentSecurityPolicy, setupReloadWatcher } from './setup';
 
-// Graceful handling of unhandled errors.
-unhandled();
-
-// Track server processes
-let serverProcess: any = null;
-let nextProcess: any = null;
+let serverProcess: ChildProcess | null = null;
+let nextProcess: ChildProcess | null = null;
 let nextBackendReady = false;
-let agendaProjectRoot: string | null = null;
+let backendPort = 0;
+const backendToken = randomBytes(32).toString('hex');
+let quitting = false;
+const capacitorFileConfig: CapacitorElectronConfig = getCapacitorElectronConfig();
+const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig);
 
-const NEXT_PORT = 3000;
-
-const isPortOpen = (host: string, port: number, timeoutMs = 1500): Promise<boolean> => {
+function getAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.on('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const port = (server.address() as net.AddressInfo).port;
+      server.close((error) => error ? reject(error) : resolve(port));
+    });
+  });
+}
+function healthy(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const socket = net.createConnection({ host, port });
-    let settled = false;
-
-    const finish = (isOpen: boolean) => {
-      if (settled) {
-        return;
-      }
-
-      settled = true;
-      socket.destroy();
-      resolve(isOpen);
-    };
-
-    socket.setTimeout(timeoutMs);
-    socket.on('connect', () => finish(true));
-    socket.on('timeout', () => finish(false));
-    socket.on('error', () => finish(false));
-  });
-};
-
-const getLanUrls = (port: number) => {
-  const urls = [`http://localhost:${port}`, `http://127.0.0.1:${port}`];
-
-  for (const addresses of Object.values(os.networkInterfaces())) {
-    for (const address of addresses || []) {
-      if (address.family === 'IPv4' && !address.internal) {
-        urls.push(`http://${address.address}:${port}`);
-      }
-    }
-  }
-
-  return Array.from(new Set(urls));
-};
-
-const prefixProcessOutput = (
-  stream: NodeJS.ReadableStream,
-  prefix: string,
-  transformLine: (line: string) => string | null = (line) => line
-) => {
-  stream.on('data', (data: Buffer) => {
-    for (const line of data.toString().split(/\r?\n/)) {
-      const trimmed = line.trimEnd();
-      if (!trimmed) {
-        continue;
-      }
-
-      const outputLine = transformLine(trimmed);
-      if (outputLine) {
-        console.log(`${prefix} ${outputLine}`);
-      }
-    }
-  });
-};
-
-const extendPathForNode = () => {
-  const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
-  const extras = [
-    path.join(process.env.ProgramFiles || 'C:\\Program Files', 'nodejs'),
-    path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'nodejs'),
-    path.join(process.env.APPDATA || '', 'npm'),
-  ];
-
-  process.env[pathKey] = [...extras, process.env[pathKey] || ''].filter(Boolean).join(path.delimiter);
-};
-
-const waitForPort = async (host: string, port: number, maxWaitMs: number) => {
-  const deadline = Date.now() + maxWaitMs;
-
-  while (Date.now() < deadline) {
-    if (await isPortOpen(host, port)) {
-      return true;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-
-  return false;
-};
-
-const readConfiguredProjectRoot = () => {
-  if (process.env.AGENDA_PLUS_ROOT) {
-    return process.env.AGENDA_PLUS_ROOT;
-  }
-
-  const configPaths = [
-    path.join(process.env.APPDATA || '', 'Agenda+', 'project-root.txt'),
-    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Agenda+', 'project-root.txt'),
-  ];
-
-  for (const configPath of configPaths) {
-    try {
-      if (fs.existsSync(configPath)) {
-        const configured = fs.readFileSync(configPath, 'utf8').trim();
-        if (configured) {
-          return configured;
-        }
-      }
-    } catch {
-      // ignore invalid config reads
-    }
-  }
-
-  return null;
-};
-
-const rememberProjectRoot = (rootPath: string) => {
-  try {
-    const configDir = path.join(process.env.APPDATA || '', 'Agenda+');
-    fs.mkdirSync(configDir, { recursive: true });
-    fs.writeFileSync(path.join(configDir, 'project-root.txt'), rootPath, 'utf8');
-  } catch (error) {
-    console.warn('BUDD-IE: Could not persist project root path.', error);
-  }
-};
-
-const findProjectRoot = () => {
-  const candidates = [
-    readConfiguredProjectRoot(),
-    process.env.AGENDA_PLUS_ROOT,
-    'C:\\AgendaPlusv2.0',
-    path.join(process.env.USERPROFILE || '', 'AgendaPlusv2.0'),
-    path.join(process.env.USERPROFILE || '', 'Documents', 'AgendaPlusv2.0'),
-    path.join(process.env.USERPROFILE || '', 'source', 'repos', 'AgendaPlusv2.0'),
-    process.cwd(),
-  ].filter(Boolean) as string[];
-
-  try {
-    const exeDir = path.dirname(app.getPath('exe'));
-    candidates.push(path.dirname(exeDir), exeDir);
-  } catch {
-    // app.getPath may be unavailable very early
-  }
-
-  candidates.push(path.join(app.getAppPath(), '..'), path.join(app.getAppPath(), '..', '..'));
-
-  for (const candidate of candidates) {
-    const packageJsonPath = path.join(candidate, 'package.json');
-    const apiPath = path.join(candidate, 'src', 'app', 'api');
-
-    if (fs.existsSync(packageJsonPath) && fs.existsSync(apiPath)) {
-      return candidate;
-    }
-  }
-
-  return null;
-};
-
-const pickNextScript = (rootPath: string) => {
-  const buildIdPath = path.join(rootPath, '.next', 'BUILD_ID');
-  const configPath = path.join(rootPath, 'next.config.mjs');
-  
-  let isExport = false;
-  try {
-    if (fs.existsSync(configPath)) {
-      const configContent = fs.readFileSync(configPath, 'utf8');
-      if (configContent.includes("output: 'export'") || configContent.includes('output: "export"')) {
-        isExport = true;
-      }
-    }
-  } catch (err) {
-    console.error('BUDD-IE: Error checking next.config.mjs', err);
-  }
-
-  // next start (RunIt) fails with output: export.
-  // fallback to dev:next if export is enabled.
-  return (fs.existsSync(buildIdPath) && !isExport) ? 'RunIt' : 'dev:next';
-};
-
-// Function to start the servers (ollama and next.js)
-const startServers = async () => {
-  console.log('BUDD-IE: Starting sidecar services...');
-  extendPathForNode();
-
-  const rootPath = findProjectRoot();
-  agendaProjectRoot = rootPath;
-
-  if (rootPath) {
-    rememberProjectRoot(rootPath);
-  }
-  
-  // Start Ollama
-  try {
-    if (await isPortOpen('127.0.0.1', 11434)) {
-      console.log('BUDD-IE: Ollama is already running at http://127.0.0.1:11434.');
-    } else {
-      const ollamaEnv = { ...process.env, OLLAMA_VULKAN: '1' };
-      serverProcess = spawn('ollama', ['serve'], { env: ollamaEnv, shell: true });
-
-      prefixProcessOutput(serverProcess.stdout, '[Ollama]');
-      prefixProcessOutput(serverProcess.stderr, '[Ollama]');
-      serverProcess.on('exit', (code: any) => {
-        console.log(`BUDD-IE: Ollama process exited with code ${code}`);
+    const request = http.get(`http://127.0.0.1:${port}/api/health`, (response) => {
+      let body = '';
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => {
+        try { resolve(response.statusCode === 200 && JSON.parse(body).ok === true); }
+        catch { resolve(false); }
       });
-      serverProcess.on('error', (err: any) => {
-        console.error('BUDD-IE: Ollama process error:', err);
-      });
-    }
-  } catch (err) {
-    console.error('Failed to start Ollama:', err);
+    });
+    request.setTimeout(1000, () => request.destroy());
+    request.on('error', () => resolve(false));
+  });
+}
+async function startServers() {
+  backendPort = await getAvailablePort();
+  const backend = app.isPackaged
+    ? path.join(process.resourcesPath, 'backend')
+    : path.resolve(app.getAppPath(), '..', '.next-server', 'standalone');
+  const entry = path.join(backend, 'server.js');
+  if (!fs.existsSync(entry)) throw new Error('Backend missing. Run npm run build:server before starting Electron.');
+  const writable = path.join(app.getPath('userData'), 'backend');
+  fs.mkdirSync(writable, { recursive: true });
+  nextProcess = spawn(process.execPath, [entry], {
+    cwd: writable,
+    windowsHide: true,
+    env: {
+      ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_ENV: 'production',
+      HOSTNAME: '127.0.0.1', PORT: String(backendPort), AGENDA_API_TOKEN: backendToken,
+      AGENDA_PORTAL_PROFILE_DIR: path.join(app.getPath('userData'), 'portal-browser-profile'),
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  nextProcess.stdout?.on('data', (data) => console.log(`[Backend] ${data}`));
+  nextProcess.stderr?.on('data', (data) => console.error(`[Backend] ${data}`));
+  let failure: Error | null = null;
+  nextProcess.on('error', (error) => { failure = error; });
+  nextProcess.on('exit', () => { nextBackendReady = false; });
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline && !quitting) {
+    if (failure) throw failure;
+    if (nextProcess.exitCode !== null) throw new Error('Backend exited before becoming ready.');
+    if (await healthy(backendPort)) { nextBackendReady = true; return; }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
-
-  // Start Next.js (Sidecar for API routes)
-  try {
-    if (!rootPath) {
-      console.error(
-        'BUDD-IE: Could not find Agenda+ project root. Clone/build the repo, run "npm run dev" from that folder, or create %APPDATA%\\Agenda+\\project-root.txt with the full path to AgendaPlusv2.0.'
-      );
-      nextBackendReady = false;
-      return;
-    }
-
-    if (await isPortOpen('127.0.0.1', NEXT_PORT)) {
-      console.log(`BUDD-IE: Next.js API already listening on http://127.0.0.1:${NEXT_PORT}`);
-      nextBackendReady = true;
-      return;
-    }
-
-    const nextScript = pickNextScript(rootPath);
-    console.log(`BUDD-IE: Spawning Next.js (${nextScript}) from ${rootPath}`);
-    console.log(`BUDD-IE: Usable API URLs: ${getLanUrls(NEXT_PORT).join(', ')}`);
-    nextProcess = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', nextScript], {
-      cwd: rootPath,
-      shell: true,
-      env: process.env,
-    });
-
-    const formatNextLine = (line: string) => {
-      if (line.includes('Network:') && line.includes('0.0.0.0:9002')) {
-        return `Network URLs: ${getLanUrls(NEXT_PORT).join(', ')}`;
-      }
-
-      return line;
-    };
-
-    prefixProcessOutput(nextProcess.stdout, '[Next.js]', formatNextLine);
-    prefixProcessOutput(nextProcess.stderr, '[Next.js]', formatNextLine);
-    nextProcess.on('exit', (code: any) => {
-      console.log(`BUDD-IE: Next.js process exited with code ${code}`);
-      nextBackendReady = false;
-    });
-    nextProcess.on('error', (err: any) => {
-      console.error('BUDD-IE: Next.js process error:', err);
-      nextBackendReady = false;
-    });
-
-    nextBackendReady = await waitForPort('127.0.0.1', NEXT_PORT, 120_000);
-    if (nextBackendReady) {
-      console.log(`BUDD-IE: Next.js API is ready at http://127.0.0.1:${NEXT_PORT}`);
-    } else {
-      console.error(
-        `BUDD-IE: Timed out waiting for Next.js on port ${NEXT_PORT}. Run "npm run dev:next" manually from ${rootPath}.`
-      );
-    }
-  } catch (err) {
-    console.error('Failed to start Next.js:', err);
-    nextBackendReady = false;
-  }
-};
-
-// Function to stop the servers
+  throw new Error('Backend health check timed out.');
+}
 const stopServers = () => {
-  console.log('BUDD-IE: Stopping sidecar services...');
-  
-  if (process.platform === 'win32') {
-    // Force kill Ollama
-    exec('taskkill /F /IM ollama.exe /T', (error) => {
-      if (error) console.log('Ollama process not found or already stopped');
-    });
-    
-    // Force kill Next.js process tree
-    if (nextProcess && nextProcess.pid) {
-      exec(`taskkill /F /T /PID ${nextProcess.pid}`, (error) => {
-        if (error) console.log('Next.js process tree not found or already stopped');
-      });
-    }
-  } else {
-    if (serverProcess) serverProcess.kill();
-    if (nextProcess) nextProcess.kill();
+  for (const child of [serverProcess, nextProcess]) {
+    if (!child || child.exitCode !== null || !child.pid) continue;
+    if (process.platform === 'win32') {
+      execFile('taskkill', ['/F', '/T', '/PID', String(child.pid)], () => {});
+    } else { child.kill(); }
   }
-  
+  nextBackendReady = false;
   serverProcess = null;
   nextProcess = null;
-  console.log('BUDD-IE: Sidecar services stopped');
 };
+// Define our menu templates in setup.ts.
 
-// Define our menu templates (these are optional)
-const trayMenuTemplate: (MenuItemConstructorOptions | MenuItem)[] = [new MenuItem({ label: 'Quit App', role: 'quit' })];
-const appMenuBarMenuTemplate: (MenuItemConstructorOptions | MenuItem)[] = [
-  { role: process.platform === 'darwin' ? 'appMenu' : 'fileMenu' },
-  { role: 'viewMenu' },
-];
+// The backend belongs to the application lifetime, not a planner profile.
+ipcMain.handle('agenda:get-backend-status', async () => ({
+  ready: nextBackendReady && await healthy(backendPort), port: backendPort, token: backendToken,
+  urls: nextBackendReady ? [`http://127.0.0.1:${backendPort}`] : [],
+}));
 
-// Get Config options from capacitor.config
-const capacitorFileConfig: CapacitorElectronConfig = getCapacitorElectronConfig();
-console.log('BUDD-IE: Capacitor Configuration:', JSON.stringify(capacitorFileConfig, null, 2));
-
-// Initialize our app. You can pass menu templates into the app here.
-// const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig);
-const myCapacitorApp = new ElectronCapacitorApp(capacitorFileConfig, trayMenuTemplate, appMenuBarMenuTemplate);
-
-// If deeplinking is enabled then we will set it up here.
-if (capacitorFileConfig.electron?.deepLinkingEnabled) {
-  setupElectronDeepLinking(myCapacitorApp, {
-    customProtocol: capacitorFileConfig.electron.deepLinkingCustomProtocol ?? 'mycapacitorapp',
-  });
-}
-
-// If we are in Dev mode, use the file watcher components.
-if (electronIsDev) {
-  setupReloadWatcher(myCapacitorApp);
-}
-
-// Run Application
-(async () => {
+app.whenReady().then(async () => {
   try {
-    // Wait for electron app to be ready.
-    await app.whenReady();
-
-    // Start sidecar servers (portal sync needs Next.js API on port 9002)
     await startServers();
-
-    // Security - Set Content-Security-Policy based on whether or not we are in dev mode.
-    setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme());
-    // Initialize our app, build windows, and load content.
+    setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme(), backendPort);
+    if (!app.isPackaged) setupReloadWatcher(myCapacitorApp);
     await myCapacitorApp.init();
+    if (process.env.AGENDA_SMOKE_TEST === '1') {
+      const window = myCapacitorApp.getMainWindow();
+      if (window.webContents.isLoading()) {
+        await new Promise<void>((resolve, reject) => {
+          window.webContents.once('did-finish-load', () => resolve());
+          window.webContents.once('did-fail-load', (_event, code, description) => reject(new Error(`${code}: ${description}`)));
+        });
+      }
+      const loaded = await window.webContents.executeJavaScript(`(async () => {
+        const status = await window.electronAPI.getBackendStatus();
+        const health = await fetch(status.urls[0] + '/api/health');
+        const denied = await fetch(status.urls[0] + '/api/parse-assignment');
+        const authorized = await fetch(status.urls[0] + '/api/parse-assignment', { headers: { 'X-Agenda-Token': status.token } });
+        return document.title.includes('Agenda+') && status.ready && document.body.innerText.length > 0
+          && (await health.json()).ok && denied.status === 401 && authorized.status === 405;
+      })()`);
+      if (!loaded) throw new Error('Packaged frontend or preload/backend bridge failed.');
+      console.log('AGENDA_SMOKE_OK');
+      app.quit();
+    }
   } catch (error) {
-    console.error('BUDD-IE: Critical error during app initialization:', error);
-    app.quit();
-  }
-})();
-
-// Handle when all of our windows are close (platforms have their own expectations).
-app.on('window-all-closed', function () {
-  console.log('BUDD-IE: window-all-closed event triggered');
-  // Stop servers before quitting
-  stopServers();
-  // On OS X it is common for applications and their menu bar
-  // to stay active until the user quits explicitly with Cmd + Q
-  if (process.platform !== 'darwin') {
-    console.log('BUDD-IE: Quitting app because window-all-closed');
-    app.quit();
+    console.error('Agenda+ startup failed:', error);
+    if (process.env.AGENDA_SMOKE_TEST === '1') { stopServers(); app.exit(1); }
+    else {
+      // Core planner remains usable when optional backend features are unavailable.
+      setupContentSecurityPolicy(myCapacitorApp.getCustomURLScheme(), backendPort);
+      await myCapacitorApp.init();
+    }
   }
 });
-
-// Handle app quit
-app.on('quit', () => {
-  console.log('BUDD-IE: app quit event triggered');
-  stopServers();
+app.on('before-quit', () => { quitting = true; stopServers(); });
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('activate', async () => {
+  if (myCapacitorApp.getMainWindow()?.isDestroyed()) await myCapacitorApp.init();
 });
-
-// When the dock icon is clicked.
-app.on('activate', async function () {
-  console.log('BUDD-IE: app activate event triggered');
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (myCapacitorApp.getMainWindow().isDestroyed()) {
-    console.log('BUDD-IE: Re-initializing main window');
-    await myCapacitorApp.init();
-  }
-});
-
-// IPC handler for logout - stop servers when user logs out
-ipcMain.on('user-logout', () => {
-  console.log('BUDD-IE: user-logout IPC received');
-  stopServers();
-});
-
-ipcMain.handle('agenda:get-backend-status', async () => {
-  const portOpen = await isPortOpen('127.0.0.1', NEXT_PORT);
-  nextBackendReady = portOpen || nextBackendReady;
-
-  return {
-    ready: nextBackendReady && portOpen,
-    projectRoot: agendaProjectRoot,
-    port: NEXT_PORT,
-    urls: getLanUrls(NEXT_PORT),
-  };
-});
-
-// Place all ipc or other electron api calls and custom functionality under this line
-

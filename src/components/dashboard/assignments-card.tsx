@@ -16,7 +16,7 @@ export function AssignmentsCard() {
 
     const upcomingAssignments = [...assignments]
         .filter(a => !a.completed)
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+        .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
 
     const isOverdue = (date: Date) => new Date(date) < new Date() && !isToday(date);
 
@@ -60,9 +60,9 @@ export function AssignmentsCard() {
                                         <p className="text-sm text-muted-foreground">{assignment.course}</p>
                                     </div>
                                     <Badge
-                                        variant={isOverdue(assignment.dueDate) ? 'destructive' : isToday(assignment.dueDate) ? 'default' : 'outline'}
+                                        variant={assignment.dueDate && isOverdue(assignment.dueDate) ? 'destructive' : assignment.dueDate && isToday(assignment.dueDate) ? 'default' : 'outline'}
                                         className="text-sm">
-                                        {format(new Date(assignment.dueDate), 'MMM d')}
+                                        {assignment.dueDate ? format(assignment.dueDate, 'MMM d') : 'Unverified'}
                                     </Badge>
                                 </div>
                             ))

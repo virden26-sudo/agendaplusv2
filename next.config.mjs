@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  outputFileTracingRoot: process.cwd(),
+  output: process.env.AGENDA_BUILD_TARGET === 'server' || process.env.NODE_ENV === 'development' ? 'standalone' : 'export',
+  distDir: process.env.AGENDA_BUILD_TARGET === 'server' ? '.next-server' : '.next',
   allowedDevOrigins: ['localhost', '127.0.0.1', '*', '192.168.137.1', '192.168.137.*', '172.17.101.50', '172.17.101.*', '192.168.56.1', '192.168.56.*'],
   // If you are using a custom domain/CDN, it MUST have http:// or https://
   // If you are just running locally, it's safest to leave this as undefined or '/'

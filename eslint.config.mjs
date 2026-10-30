@@ -20,7 +20,7 @@ const config = [
     }
   },
   {
-    ignores: [".next/", "out/", "build/", "FinalA+/", "android/", ".portal-browser-profile/", "electron/", "playwright-report/", "test-results/", "dist/", "taskkill", "agent"]
+    ignores: [".native-build/", ".next-server/", "electron/backend/", ".next/", "out/", "build/", "FinalA+/", "android/", ".portal-browser-profile/", "electron/", "playwright-report/", "test-results/", "dist/", "taskkill", "agent"]
   }
 ];
 

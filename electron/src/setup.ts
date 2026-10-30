@@ -4,42 +4,22 @@ import {
   CapacitorSplashScreen,
   setupCapacitorElectronPlugins,
 } from '@capacitor-community/electron';
-import chokidar from 'chokidar';
+import { watch } from 'fs';
 import type { MenuItemConstructorOptions } from 'electron';
-import { app, BrowserWindow, Menu, MenuItem, nativeImage, Tray, session } from 'electron';
+import { app, BrowserWindow, Menu, MenuItem, nativeImage, Tray, session, shell } from 'electron';
 import electronIsDev from 'electron-is-dev';
 import electronServe from 'electron-serve';
 import windowStateKeeper from 'electron-window-state';
 import { join } from 'path';
 
-// Define components for a watcher to detect when the webapp is changed so we can reload in Dev mode.
-const reloadWatcher = {
-  debouncer: null,
-  ready: false,
-  watcher: null,
-};
+// Watch only development assets; packaged applications never start a watcher.
 export function setupReloadWatcher(electronCapacitorApp: ElectronCapacitorApp): void {
-  reloadWatcher.watcher = chokidar
-    .watch(join(app.getAppPath(), 'app'), {
-      ignored: /[/\\]\./,
-      persistent: true,
-    })
-    .on('ready', () => {
-      reloadWatcher.ready = true;
-    })
-    .on('all', (_event, _path) => {
-      if (reloadWatcher.ready) {
-        clearTimeout(reloadWatcher.debouncer);
-        reloadWatcher.debouncer = setTimeout(async () => {
-          electronCapacitorApp.getMainWindow().webContents.reload();
-          reloadWatcher.ready = false;
-          clearTimeout(reloadWatcher.debouncer);
-          reloadWatcher.debouncer = null;
-          reloadWatcher.watcher = null;
-          setupReloadWatcher(electronCapacitorApp);
-        }, 1500);
-      }
-    });
+  let timer: ReturnType<typeof setTimeout>;
+  const watcher = watch(join(app.getAppPath(), 'app'), { recursive: true }, () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => electronCapacitorApp.getMainWindow()?.webContents.reload(), 300);
+  });
+  app.once('before-quit', () => { clearTimeout(timer); watcher.close(); });
 }
 
 // Define our class to manage our app.
@@ -171,40 +151,6 @@ export class ElectronCapacitorApp {
     // Setup the main manu bar at the top of our window.
     Menu.setApplicationMenu(Menu.buildFromTemplate(this.AppMenuBarMenuTemplate));
 
-    // If the splashscreen is enabled, show it first while the main window loads then switch it out for the main window, or just load the main window from the start.
-    if (this.CapacitorFileConfig.electron?.splashScreenEnabled) {
-      this.SplashScreen = new CapacitorSplashScreen({
-        imageFilePath: join(
-          app.getAppPath(),
-          'assets',
-          this.CapacitorFileConfig.electron?.splashScreenImageName ?? 'splash.png'
-        ),
-        windowWidth: 400,
-        windowHeight: 400,
-      });
-      this.SplashScreen.init(this.loadMainWindow, this);
-    } else {
-      this.loadMainWindow(this);
-    }
-
-    // Security
-    this.MainWindow.webContents.setWindowOpenHandler((details) => {
-      if (!details.url.includes(this.customScheme)) {
-        return { action: 'deny' };
-      } else {
-        return { action: 'allow' };
-      }
-    });
-    this.MainWindow.webContents.on('will-navigate', (event, newURL) => {
-      console.log(`BUDD-IE: will-navigate to ${newURL}`);
-      if (!newURL.includes(this.customScheme)) {
-        event.preventDefault();
-      }
-    });
-
-    // Link electron plugins into the system.
-    setupCapacitorElectronPlugins();
-
     // When the web app is loaded we hide the splashscreen if needed and show the mainwindow.
     this.MainWindow.webContents.on('dom-ready', () => {
       console.log('BUDD-IE: dom-ready event triggered');
@@ -223,6 +169,45 @@ export class ElectronCapacitorApp {
         CapElectronEventEmitter.emit('CAPELECTRON_DeeplinkListenerInitialized', '');
       }, 400);
     });
+
+    // If the splashscreen is enabled, show it first while the main window loads then switch it out for the main window, or just load the main window from the start.
+    if (this.CapacitorFileConfig.electron?.splashScreenEnabled) {
+      this.SplashScreen = new CapacitorSplashScreen({
+        imageFilePath: join(
+          app.getAppPath(),
+          'assets',
+          this.CapacitorFileConfig.electron?.splashScreenImageName ?? 'splash.png'
+        ),
+        windowWidth: 400,
+        windowHeight: 400,
+      });
+      this.SplashScreen.init(this.loadMainWindow, this);
+    } else {
+      await this.loadMainWindow(this);
+    }
+
+    // Security
+    this.MainWindow.webContents.setWindowOpenHandler((details) => {
+      if (new URL(details.url).protocol !== `${this.customScheme}:`) {
+        if (['https:', 'http:'].includes(new URL(details.url).protocol)) {
+          void shell.openExternal(details.url).catch(error => console.error('Could not open browser:', error));
+        }
+        return { action: 'deny' };
+      } else {
+        return { action: 'allow' };
+      }
+    });
+    this.MainWindow.webContents.on('will-navigate', (event, newURL) => {
+      console.log(`BUDD-IE: will-navigate to ${newURL}`);
+      if (new URL(newURL).protocol !== `${this.customScheme}:`) {
+        event.preventDefault();
+      }
+    });
+
+    // Link electron plugins into the system.
+    setupCapacitorElectronPlugins();
+
+
   }
 }
 
@@ -243,14 +228,14 @@ export function setupRscPathRewrite(customScheme: string): void {
 }
 
 // Set a CSP up for our application based on the custom scheme
-export function setupContentSecurityPolicy(customScheme: string): void {
+export function setupContentSecurityPolicy(customScheme: string, backendPort = 3000): void {
   setupRscPathRewrite(customScheme);
 
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     const devSources = electronIsDev ? " devtools://* 'unsafe-eval'" : '';
     const csp = [
       `default-src ${customScheme}://* 'unsafe-inline'${devSources} data: https://fonts.googleapis.com https://fonts.gstatic.com`,
-      `connect-src ${customScheme}://* http://127.0.0.1:3000 http://localhost:3000 http://[::1]:3000 ws://127.0.0.1:3000 ws://localhost:3000 ws://[::1]:3000 http://127.0.0.1:9002 http://localhost:9002 ws://127.0.0.1:9002 ws://localhost:9002 http://127.0.0.1:11434 http://localhost:11434 ws://127.0.0.1:11434 ws://localhost:11434`,
+      `connect-src ${customScheme}://* https: http://127.0.0.1:* http://localhost:* http://[::1]:*${electronIsDev ? ' ws://localhost:3000' : ''}`,
       `img-src ${customScheme}://* data: https://picsum.photos https://fastly.picsum.photos`,
       `style-src ${customScheme}://* 'unsafe-inline' https://fonts.googleapis.com`,
       `font-src ${customScheme}://* data: https://fonts.gstatic.com`,

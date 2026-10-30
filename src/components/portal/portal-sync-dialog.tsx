@@ -54,7 +54,7 @@ export function PortalSyncDialog({
         setStep("paste");
         toast({
             title: "School portal opened",
-            description: "Log in, open Assignments or Calendar, copy the list, then come back here.",
+            description: "Log in, open Assignments, Quizzes or Discussions, copy the list, then come back here.",
         });
     };
 
@@ -76,7 +76,7 @@ export function PortalSyncDialog({
         if (!portalText.trim()) {
             toast({
                 variant: "destructive",
-                title: "Paste your assignments",
+                title: "Paste your coursework",
                 description: "Copy text from your portal after you log in.",
             });
             return;
@@ -97,7 +97,7 @@ export function PortalSyncDialog({
                 toast({
                     variant: "destructive",
                     title: "Nothing found in that text",
-                    description: "Copy the full Assignments or Upcoming Work list from your portal and try again.",
+                    description: "Copy the full coursework lists and instructions from your portal and try again.",
                 });
             }
         } finally {
@@ -119,7 +119,7 @@ export function PortalSyncDialog({
                         Sync your school portal
                     </DialogTitle>
                     <DialogDescription>
-                        Log in to your university site, copy your assignment list, and Agenda+ handles the rest on this device.
+                        Log in to your university site, copy your coursework lists and instructions, and Agenda+ handles the rest on this device.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -146,7 +146,7 @@ export function PortalSyncDialog({
                             Open portal again
                         </Button>
                         <Textarea
-                            placeholder="Paste everything you copied from Assignments or Calendar…"
+                            placeholder="Paste everything you copied from Assignments, Quizzes or Discussions…"
                             className="min-h-[200px] font-mono text-sm"
                             value={portalText}
                             onChange={(event) => setPortalText(event.target.value)}

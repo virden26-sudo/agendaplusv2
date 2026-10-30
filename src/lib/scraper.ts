@@ -5,17 +5,10 @@ let sharedBrowser: any = null;
 let sharedBrowserPromise: Promise<any> | null = null;
 let sharedBrowserVisible = false;
 const SHARED_BROWSER_PROFILE_DIR = process.env.AGENDA_PORTAL_PROFILE_DIR
-    || `${process.cwd()}\\.portal-browser-profile`;
+    || `${process.cwd()}/.portal-browser-profile`;
 
 // Mutex to serialize all scraping missions and prevent concurrent browser launches
 let scraperMutex = Promise.resolve();
-
-type StructuredPortalItem = {
-    task: string;
-    dueDate?: string | null;
-    details?: string | null;
-    href?: string | null;
-};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -178,92 +171,31 @@ async function safeGoto(page: any, url: string, timeout = 45000) {
 }
 
 /** Pull assignment/quiz rows from D2L tables instead of relying on messy innerText. */
-async function enrichStructuredAssignmentDueDates(page: any, structuredBlock: string): Promise<string> {
-    const header = /===\s*STRUCTURED:\s*Assignments\s*===\s*/i;
-    if (!header.test(structuredBlock)) {
-        return structuredBlock;
-    }
-
-    const jsonText = structuredBlock.replace(header, "").trim();
-    let payload: { course?: string; items?: StructuredPortalItem[] };
+async function enrichStructuredCoursework(page: any, structuredBlock: string): Promise<string> {
+    const match = structuredBlock.match(/===\s*STRUCTURED:\s*(Assignments|Quizzes|Discussions)\s*===\s*([\s\S]*)/i);
+    if (!match) return structuredBlock;
+    const payload = JSON.parse(match[2]);
+    const {parseExplicitDueDate} = await import('@/lib/portal-text-parser');
+    const origin = new URL(page.url()).origin;
+    // Use a separate tab so detail navigation never changes the list being collected.
+    const detailPage = await page.browser().newPage();
     try {
-        payload = JSON.parse(jsonText);
-    } catch {
-        return structuredBlock;
-    }
-
-    const items = payload.items || [];
-    const pending = items.filter((item) => !item.dueDate && item.href);
-    if (pending.length === 0) {
-        return structuredBlock;
-    }
-
-    const { findDueDateInBlob, isReasonableDueDate } = await import("@/lib/due-date-inference");
-    const anchor = new Date();
-    const anchorYear = anchor.getFullYear();
-    const limit = Math.min(pending.length, 15);
-
-    console.log(`BUDD-IE Scraper: Resolving due dates from ${limit} assignment detail pages...`);
-
-    for (const item of pending.slice(0, limit)) {
+      for (const item of payload.items || []) {
         if (!item.href) continue;
+        const href = new URL(item.href, page.url());
+        if (href.origin !== origin || /attempt|startquiz|submit|delete|logout/i.test(href.href)) continue;
         try {
-            await safeGoto(page, item.href, 25000);
-            await sleep(1000);
-
-            const dueFromDom = await page.evaluate(`(() => {
-                const parseNamed = (raw) => {
-                    const text = (raw || "").replace(/\\s+/g, " ").trim();
-                    const iso = text.match(/(\\d{4}-\\d{2}-\\d{2})/);
-                    if (iso) return iso[1];
-                    const named = text.match(/([A-Za-z]+)\\s+(\\d{1,2})(?:,?\\s*(\\d{4}))?/);
-                    if (!named) return null;
-                    const months = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
-                    const m = months[named[1].slice(0,3).toLowerCase()];
-                    if (m === undefined) return null;
-                    const y = named[3] ? Number(named[3]) : new Date().getFullYear();
-                    return y + "-" + String(m + 1).padStart(2, "0") + "-" + named[2].padStart(2, "0");
-                };
-
-                for (const timeEl of document.querySelectorAll("time[datetime]")) {
-                    const dt = timeEl.getAttribute("datetime") || "";
-                    const iso = dt.match(/(\\d{4}-\\d{2}-\\d{2})/);
-                    if (iso) return iso[1];
-                }
-
-                const labelWords = ["due date", "end date", "deadline", "closes", "available until"];
-                for (const el of document.querySelectorAll("label, dt, th, .d2l-label, .d2l-datalabel")) {
-                    const label = (el.textContent || "").trim().toLowerCase();
-                    if (!labelWords.some((w) => label === w || label.startsWith(w))) continue;
-                    const sibling = el.nextElementSibling || el.parentElement?.querySelector(".d2l-datalabel-value, dd, time, span");
-                    const parsed = parseNamed(sibling?.textContent || el.parentElement?.textContent || "");
-                    if (parsed) return parsed;
-                }
-
-                const body = document.body?.innerText || "";
-                const labeled = body.match(/(?:due\\s*date|end\\s*date)\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2},?\\s*\\d{4})/i);
-                return labeled ? parseNamed(labeled[1]) : null;
-            })()`);
-
-            let dueDate = dueFromDom || null;
-            if (!dueDate) {
-                const detailText = await extractVisibleText(page);
-                dueDate = findDueDateInBlob(detailText, anchorYear, anchor);
-            }
-
-            if (dueDate && isReasonableDueDate(dueDate, anchor)) {
-                item.dueDate = dueDate;
-                console.log(`BUDD-IE Scraper: Found due date for "${item.task}": ${dueDate}`);
-            }
-        } catch (error) {
-            console.warn(`BUDD-IE Scraper: Could not read due date from ${item.href}`, error);
-        }
-    }
-
-    return `\n\n=== STRUCTURED: Assignments ===\n${JSON.stringify(payload)}\n`;
+          await safeGoto(detailPage, href.href, 25000);
+          const detailText = await extractVisibleText(detailPage);
+          item.details = [item.details, detailText].filter(Boolean).join('\n');
+          if (!item.dueDate) item.dueDate = parseExplicitDueDate(detailText, new Date().getFullYear());
+        } catch (error) { console.warn('Coursework detail page could not be read', error); }
+      }
+    } finally { await detailPage.close(); }
+    return `\n\n=== STRUCTURED: ${match[1]} ===\n${JSON.stringify(payload)}\n`;
 }
 
-async function extractD2LStructured(page: any, sectionName: string): Promise<string> {
+async function extractD2LStructured(page: any, sectionName: string, fallbackCourse = "Course"): Promise<string> {
     try {
         const payload = await page.evaluate(`((section) => {
             const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim();
@@ -290,20 +222,22 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
 
             const parseDueFromNode = (node) => {
                 if (!node) return null;
-                const timeEl = node.querySelector("time[datetime]");
-                if (timeEl) {
-                    const dt = timeEl.getAttribute("datetime") || "";
-                    const iso = dt.match(/(\\d{4}-\\d{2}-\\d{2})/);
-                    if (iso) return iso[1];
-                }
-                const labeled = (node.textContent || "").match(/(?:due|end|closes|deadline)(?:\\s*date)?\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2}[^\\n,]{0,20}(?:\\d{4})?)/i);
+                const labeled = (node.textContent || "").match(/(?:due|deadline)(?:\\s*date)?\\s*[:\\-]?\\s*([A-Za-z]+\\s+\\d{1,2}[^\\n,]{0,20}(?:\\d{4})?)/i);
                 if (labeled) return parseDue(labeled[1]);
                 return null;
             };
 
-            const heading = document.querySelector(".d2l-page-heading, h1, h2");
+            const roots = [document];
+            for (let i = 0; i < roots.length; i++) for (const node of roots[i].querySelectorAll('*')) if (node.shadowRoot) roots.push(node.shadowRoot);
+            const queryAll = (selector) => roots.flatMap(root => [...root.querySelectorAll(selector)]);
+            const heading = queryAll(".d2l-page-heading, h1, h2")[0];
             let course = normalize(heading ? heading.textContent : "");
+            if (/^(Quiz List|Assignments|Quizzes|Discussions|Grades)$/i.test(course)) {
+                const breadcrumb = queryAll('.d2l-navigation-s-title, .d2l-navigation-s-link, [data-course-name]').map(node => normalize(node.textContent)).find(text => /[A-Z]{2,5}\\s*[-]?\\d{2,4}/i.test(text));
+                course = breadcrumb || document.title || course;
+            }
             course = course.replace(/^(Quiz\\s*List|Assignments|Quizzes|Discussions|Grades)\\s*[-–—]\\s*/i, "");
+            if (!course || /^(Quiz List|Assignments|Quizzes|Discussions|Grades)$/i.test(course)) course = ${JSON.stringify(fallbackCourse)};
 
             const items = [];
             const seen = new Set();
@@ -315,13 +249,13 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
             const isGrades = sectionLower.includes("grade");
 
             const acceptTitle = (title) => {
-                if (!title || title.length < 5) return false;
+                if (!title || title.length < 3) return false;
                 if (/hit a key|stay logged in|view history|completion status|evaluation status|national university/i.test(title)) return false;
                 if (isDiscussions) {
-                    return title.length >= 5 && !/^(name|due date|topic|threads|posts|forum)$/i.test(title);
+                    return title.length >= 3 && !/^(name|due date|topic|threads|posts|forum)$/i.test(title);
                 }
                 if (isQuizzes) {
-                    return title.length >= 5 && !/^(name|due date|status|attempts|score)$/i.test(title);
+                    return title.length >= 3 && !/^(name|due date|status|attempts|score)$/i.test(title);
                 }
                 if (isAssignments) {
                     if (/are you still there|quiz\s*list|view history|oh,?\s*there you are/i.test(title)) return false;
@@ -346,7 +280,7 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
 
             let currentWeek = null;
 
-            document.querySelectorAll("table").forEach((table) => {
+            queryAll("table").forEach((table) => {
                 const headerCells = [...table.querySelectorAll("thead th, tr th")].map((cell) => normalize(cell.textContent).toLowerCase());
                 const dueIdx = headerCells.findIndex((h) => h.includes("due") || h.includes("end date"));
                 const nameIdx = headerCells.findIndex((h) => h === "name" || h.includes("title") || h.includes("assignment") || h.includes("submission"));
@@ -367,12 +301,12 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
                     let dueText = dueCell ? dueCell.textContent : "";
                     if (!dueText) dueText = parseDueFromNode(row) || "";
                     const weekHint = currentWeek ? "Week " + currentWeek : "";
-                    pushItem(task, dueText, weekHint, link ? link.href : null);
+                    pushItem(task, dueText, [weekHint, rowText].filter(Boolean).join("\\n"), link ? link.href : null);
                 });
             });
 
             if (isGrades) {
-                document.querySelectorAll("tr").forEach((row) => {
+                queryAll("tr").forEach((row) => {
                     const rowText = normalize(row.textContent);
                     const rowTextLower = rowText.toLowerCase();
                     if (rowTextLower.includes("final calculated grade") || rowTextLower.includes("final grade") || rowTextLower.includes("calculated grade")) {
@@ -393,7 +327,7 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
             }
 
             if (isAssignments) {
-                document.querySelectorAll("a[href*='dropbox'], a[href*='folders_list']").forEach((link) => {
+                queryAll("a[href*='dropbox'], a[href*='folders_list']").forEach((link) => {
                     const task = normalize(link.textContent || "");
                     if (!acceptTitle(task)) return;
                     const row = link.closest("tr");
@@ -417,7 +351,7 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
             }
 
             if (isQuizzes) {
-                document.querySelectorAll("a[href*='quiz'], a[href*='quizzing'], a[href*='exam']").forEach((link) => {
+                queryAll("a[href*='quiz'], a[href*='quizzing'], a[href*='exam']").forEach((link) => {
                     const task = normalize(link.textContent || "");
                     if (!acceptTitle(task)) return;
                     const row = link.closest("tr, li, .d2l-datalist-item, d2l-list-item");
@@ -425,13 +359,13 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
                     if (row) {
                         dueText = parseDueFromNode(row) || "";
                     }
-                    pushItem(task, dueText, "", link.href || null);
+                    pushItem(task, dueText, row ? row.textContent : "", link.href || null);
                 });
                 return { section, course, items };
             }
 
             if (isDiscussions) {
-                document.querySelectorAll("a[href*='discussion'], a[href*='topic']").forEach((link) => {
+                queryAll("a[href*='discussion'], a[href*='topic']").forEach((link) => {
                     const task = normalize(link.textContent || "");
                     if (!acceptTitle(task)) return;
                     const row = link.closest("tr, li, .d2l-datalist-item, d2l-list-item");
@@ -439,12 +373,12 @@ async function extractD2LStructured(page: any, sectionName: string): Promise<str
                     if (row) {
                         dueText = parseDueFromNode(row) || "";
                     }
-                    pushItem(task, dueText, "", link.href || null);
+                    pushItem(task, dueText, row ? row.textContent : "", link.href || null);
                 });
                 return { section, course, items };
             }
 
-            document.querySelectorAll("d2l-list-item, .d2l-datalist-item, li").forEach((node) => {
+            queryAll("d2l-list-item, .d2l-datalist-item, li").forEach((node) => {
                 const link = node.querySelector("a[href]");
                 const task = normalize(link ? link.textContent : node.textContent);
                 if (!task) return;
@@ -473,10 +407,17 @@ async function extractVisibleText(page: any): Promise<string> {
 
         try {
             return await frame.evaluate(`(() => {
-                const clone = document.documentElement.cloneNode(true);
-                const toRemove = clone.querySelectorAll('script, style, noscript, .nav-bar, .footer, footer, header, .sidebar');
-                toRemove.forEach((element) => element.remove());
-                return clone.innerText;
+                const chunks = [];
+                const visit = (node) => {
+                    if (node.nodeType === Node.TEXT_NODE) { if (node.textContent.trim()) chunks.push(node.textContent.trim()); return; }
+                    if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
+                    if (node.nodeType === Node.ELEMENT_NODE && (node.matches('script,style,noscript,nav,footer,header,[hidden],[aria-hidden="true"]') || getComputedStyle(node).display === 'none')) return;
+                    if (node.tagName === 'SLOT') for (const child of node.assignedNodes({flatten:true})) visit(child);
+                    else if (node.shadowRoot) visit(node.shadowRoot);
+                    else for (const child of node.childNodes) visit(child);
+                };
+                visit(document.body);
+                return chunks.join('\\n');
             })()`);
         } catch (error) {
             if (isNavigationError(error)) {
@@ -486,16 +427,8 @@ async function extractVisibleText(page: any): Promise<string> {
         }
     };
 
-    const mainText = await extractFromFrame(page.mainFrame());
-    if (mainText.length > 200) {
-        return mainText;
-    }
-
-    const frameTexts = await Promise.all(
-        page.frames().map((frame: any) => extractFromFrame(frame))
-    );
-
-    return Array.from(new Set(frameTexts.filter((text: string) => text.length > 0))).join("\n");
+    const frameTexts = await Promise.all(page.frames().map((frame: any) => extractFromFrame(frame)));
+    return Array.from(new Set(frameTexts.filter((text: string) => text && text.length > 0))).join("\n");
 }
 
 export async function scrapePortal(
@@ -544,23 +477,8 @@ async function runScrapingMission(
     const fs = await import('fs');
     const isOktaUrl = (candidateUrl: string) => /(^https?:\/\/)?[^/]*okta\.com/i.test(candidateUrl);
 
-    function getExecutablePath() {
-        if (process.platform === 'win32') {
-            const paths = [
-                'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-                'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-                'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-                'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
-            ];
-            for (const p of paths) {
-                if (fs.existsSync(p)) return p;
-            }
-            throw new Error('No Chrome or Edge installation found.');
-        }
-        return '/usr/bin/google-chrome';
-    }
-
-    const executablePath = getExecutablePath();
+    const { findBrowserExecutable } = await import('@/lib/browser-runtime');
+    const executablePath = findBrowserExecutable();
     const sessionReady = Boolean(options?.sessionReady);
     const mode = options?.mode;
     const isSilent = mode === "startup" || mode === "background";
@@ -694,13 +612,22 @@ async function runScrapingMission(
             activeUrl.match(/\/content\/(\d+)\//) ||
             activeUrl.match(/\/le\/content\/(\d+)\//);
 
-        if (activeUrl.includes('d2l') && d2lOuMatch?.[1]) {
+        if (activeUrl.includes('d2l')) {
             console.log("BUDD-IE Scraper: D2L detected.");
             try {
                 const origin = new URL(activeUrl).origin;
-                const ou = d2lOuMatch[1];
-
-                if (ou) {
+                const courseIds = new Set<string>(d2lOuMatch?.[1] ? [d2lOuMatch[1]] : []);
+                // Home-page course cards can live in Brightspace web-component shadow roots.
+                for (const frame of activePage.frames()) {
+                  const ids = await frame.evaluate(() => {
+                    const roots: (Document | ShadowRoot)[] = [document];
+                    for (let i=0; i<roots.length; i++) for (const node of roots[i].querySelectorAll('*')) if (node.shadowRoot) roots.push(node.shadowRoot);
+                    return roots.flatMap(root => [...root.querySelectorAll('a[href]')].map(link => (link.getAttribute('href') || '').match(/\/d2l\/home\/(\d+)|[?&]ou=(\d+)/)?.slice(1).find(Boolean)).filter(Boolean));
+                  }).catch(() => []);
+                  for (const id of ids) if (id) courseIds.add(String(id));
+                }
+                let aggregatedContent = "";
+                for (const ou of courseIds) {
                     const targets = [
                         { name: 'Assignments', url: `${origin}/d2l/lms/dropbox/user/folders_list.d2l?ou=${ou}&isprv=0` },
                         { name: 'Calendar', url: `${origin}/d2l/le/calendar/${ou}/events` },
@@ -710,7 +637,6 @@ async function runScrapingMission(
                         { name: 'Grades', url: `${origin}/d2l/lms/grades/user/grades_list.d2l?ou=${ou}` }
                     ];
 
-                    let aggregatedContent = "";
                     for (const target of targets) {
                         try {
                             activePage = await getStablePage(browser, activePage);
@@ -741,23 +667,30 @@ async function runScrapingMission(
                                 continue;
                             }
 
-                            let structured = await extractD2LStructured(activePage, target.name);
-                            if (target.name === "Assignments" && structured) {
-                                structured = await enrichStructuredAssignmentDueDates(activePage, structured);
+                            const visitedPages = new Set<string>();
+                            while (true) {
+                              const structuredBlocks: string[] = await Promise.all(activePage.frames().filter((frame: any) => !frame.isDetached()).map((frame: any) => extractD2LStructured(frame, target.name, `D2L course ${ou}`)));
+                              const pageContent = await extractVisibleText(activePage);
+                              const signature = structuredBlocks.join('') + pageContent;
+                              if (visitedPages.has(signature)) break;
+                              visitedPages.add(signature);
+                              if (['Assignments','Quizzes','Discussions'].includes(target.name)) {
+                                for (let i=0; i<structuredBlocks.length; i++) if (structuredBlocks[i]) structuredBlocks[i] = await enrichStructuredCoursework(activePage, structuredBlocks[i]);
+                              }
+                              aggregatedContent += structuredBlocks.join('') + `\n\n=== SECTION: ${target.name} ===\n\n${pageContent}`;
+                              // Read-only pagination. Never click quiz attempt, submission or post controls.
+                              const next = await activePage.$('a[rel="next"], button[aria-label="Next page"]:not([disabled]), button[title="Next Page"]:not([disabled])');
+                              if (!next) break;
+                              await next.click();
+                              await sleep(1000);
                             }
-                            const pageContent = await extractVisibleText(activePage);
-                            console.log(`BUDD-IE Scraper: ${target.name} extracted ${pageContent.length} characters (${structured ? "structured" : "text only"}).`);
-                            aggregatedContent += structured + `\n\n=== SECTION: ${target.name} ===\n\n${pageContent}`;
                         } catch (err) {
                             console.warn(`Failed to extract ${target.name}`, err);
                         }
                     }
-                    console.log(`BUDD-IE Scraper: D2L aggregation extracted ${aggregatedContent.length} characters.`);
-
-                    if (aggregatedContent.trim().length > 500) {
-                        return aggregatedContent;
-                    }
                 }
+                console.log(`BUDD-IE Scraper: D2L aggregation extracted ${aggregatedContent.length} characters.`);
+                if (aggregatedContent.trim().length > 0) return aggregatedContent;
             } catch (err) {
                 console.warn("D2L aggregation failed", err);
             }

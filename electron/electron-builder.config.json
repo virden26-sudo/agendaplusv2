@@ -1,7 +1,8 @@
 {
-  "appId": "com.yourdoamnin.yourapp",
+  "appId": "com.example.agendaplus",
   "directories": {
-    "buildResources": "resources"
+    "buildResources": "resources",
+    "output": "dist"
   },
   "files": [
     "assets/**/*",
@@ -16,10 +17,26 @@
   },
   "win": {
     "target": "nsis",
-    "icon": "assets/appIcon.png"
+    "icon": "assets/appIcon.ico"
   },
   "mac": {
-    "category": "your.app.category.type",
+    "category": "public.app-category.education",
     "target": "dmg"
+  },
+  "asar": true,
+  "afterPack": "./scripts/verify-packaged-backend.cjs",
+  "extraResources": [
+    {
+      "from": ".",
+      "to": ".",
+      "filter": [
+        "backend/**/*"
+      ]
+    }
+  ],
+  "linux": {
+    "target": "AppImage",
+    "category": "Education",
+    "executableName": "agenda-plus"
   }
 }

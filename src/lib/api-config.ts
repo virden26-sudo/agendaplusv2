@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { getElectronBackendCandidates, isElectronShell } from '@/lib/electron-bridge';
+import { getElectronBackendCandidates, getElectronBackendHeaders, isElectronShell } from '@/lib/electron-bridge';
 
 /**
  * Centralized API configuration — discovers the local Next.js API automatically.
@@ -7,7 +7,6 @@ import { getElectronBackendCandidates, isElectronShell } from '@/lib/electron-br
  */
 
 const API_BASE_STORAGE_KEY = "agendaApiBaseUrl";
-const API_PORT = 3000;
 
 const normalizeEndpoint = (endpoint: string) => {
     const endpointWithLeadingSlash = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -48,93 +47,28 @@ const isStaticCapacitorHost = () => {
     );
 };
 
-const isNextDevServerOrigin = () =>
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "[::1]") &&
-    window.location.port === "3000" &&
-    window.location.protocol.startsWith("http");
+/** Explicit remote connections apply to requests AND readiness checks. */
+export const getRemoteApiBaseUrl = () => typeof window === 'undefined' ? ''
+    : normalizeBaseUrl(localStorage.getItem('agendaRemoteApiBaseUrl'));
 
-const defaultLocalApiUrls = () => [
-    `http://127.0.0.1:${API_PORT}`,
-    `http://localhost:${API_PORT}`,
-    `http://[::1]:${API_PORT}`,
-];
-
-/** Sync candidate list (no health probe). Manual override is lowest priority. */
 export const getStaticApiBaseCandidates = (manualOverride?: string) => {
-    if (typeof window === "undefined") {
-        const env = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
-        return env ? [env] : [];
-    }
-
-    const platform = Capacitor.getPlatform();
-    const cached = normalizeBaseUrl(localStorage.getItem(API_BASE_STORAGE_KEY));
-    const manual = normalizeBaseUrl(manualOverride);
-    const envBackendUrl = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
-
-    const auto: string[] = [];
-
-    if (cached) {
-        auto.push(cached);
-    }
-
-    auto.push(...defaultLocalApiUrls());
-
-    if (platform === "android") {
-        auto.push(`http://10.0.2.2:${API_PORT}`);
-    }
-
-    const host = window.location.hostname;
-    if (host && host !== "localhost" && host !== "127.0.0.1" && host !== "[::1]") {
-        auto.push(`${window.location.protocol}//${host}:${API_PORT}`);
-    }
-
-    if (isNextDevServerOrigin() && !isStaticCapacitorHost()) {
-        auto.push("");
-    }
-
-    if (envBackendUrl) {
-        auto.push(envBackendUrl);
-    }
-
-    if (manual) {
-        auto.push(manual);
-    }
-
-    let unique = uniq(auto.filter(Boolean));
-
-    if (isNextDevServerOrigin() && !isStaticCapacitorHost()) {
-        unique = ["", ...unique.filter((c) => c !== "")];
-    } else if (isStaticCapacitorHost()) {
-        unique = unique.filter((c) => c !== "");
-        unique = [
-            ...unique.filter((c) => c.includes("127.0.0.1") || c.includes("localhost")),
-            ...unique.filter((c) => !c.includes("127.0.0.1") && !c.includes("localhost")),
-        ];
-    } else {
-        unique = [
-            ...unique.filter((c) => c.includes(`:${API_PORT}`)),
-            ...unique.filter((c) => !c.includes(`:${API_PORT}`)),
-        ];
-    }
-
-    return unique.length > 0 ? unique : defaultLocalApiUrls();
+    const explicit = normalizeBaseUrl(manualOverride) || getRemoteApiBaseUrl();
+    if (explicit) return [explicit];
+    const configured = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_BASE_URL);
+    if (typeof window === 'undefined') return configured ? [configured] : [];
+    if (configured) return [configured];
+    // A phone's localhost is the phone, not the user's computer. Do not scan it.
+    // Electron obtains its actual random loopback port through the preload bridge.
+    if (isStaticCapacitorHost()) return [];
+    // Also supports production web servers on arbitrary ports/domains.
+    return [''];
 };
 
-/** Full candidate list including Electron sidecar URLs (highest priority after cache). */
 export async function collectApiBaseCandidates(manualOverride?: string): Promise<string[]> {
-    const electronUrls = (await getElectronBackendCandidates())
-        .map((url) => normalizeBaseUrl(url))
-        .filter(Boolean);
-
-    const staticCandidates = getStaticApiBaseCandidates(manualOverride);
-
-    if (electronUrls.length === 0) {
-        return staticCandidates;
-    }
-
-    const rest = staticCandidates.filter((c) => !electronUrls.includes(c));
-    return uniq([...electronUrls, ...rest]);
+    const candidates = getStaticApiBaseCandidates(manualOverride);
+    if (normalizeBaseUrl(manualOverride) || getRemoteApiBaseUrl()) return candidates;
+    const electronUrls = (await getElectronBackendCandidates()).map(normalizeBaseUrl).filter(Boolean);
+    return uniq([...electronUrls, ...candidates]);
 }
 
 /** @deprecated Use collectApiBaseCandidates — kept for callers that expect sync list. */
@@ -239,6 +173,7 @@ export async function waitForApiBackend(
     const intervalMs = options?.intervalMs ?? 1_500;
     const deadline = Date.now() + maxWaitMs;
 
+    if (!isElectronShell() && (await collectApiBaseCandidates(manualOverride)).length === 0) return null;
     while (Date.now() < deadline) {
         const baseUrl = await resolveApiBaseUrl(manualOverride);
         if (baseUrl !== null) {
@@ -263,6 +198,7 @@ const looksLikeJsonResponse = async (response: Response) => {
 
 export async function apiFetch(endpoint: string, init?: RequestInit, manualOverride?: string) {
     const formattedEndpoint = normalizeEndpoint(endpoint);
+    const remote = getRemoteApiBaseUrl();
     const candidates = await collectApiBaseCandidates(manualOverride);
     const failures: string[] = [];
 
@@ -270,24 +206,21 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
         const url = `${candidate}${formattedEndpoint}`;
 
         try {
-            // Fast timeout for non-localhost candidates to prevent UI lag
-            const signal = candidate.includes('localhost') || candidate.includes('127.0.0.1') || candidate === ''
-                ? init?.signal
-                : AbortSignal.any([init?.signal || new AbortController().signal, AbortSignal.timeout(2000)]);
+            // Explicit caller deadlines cover long portal scans and model generation.
+            const signal = init?.signal || AbortSignal.timeout(15000);
 
-            const response = await fetch(url, { ...init, signal });
+            const headers = new Headers(init?.headers);
+            if (remote && candidate === remote) {
+                const token = sessionStorage.getItem('agendaRemoteApiToken');
+                if (token) headers.set('X-Agenda-Token', token);
+            }
+            for (const [name, value] of Object.entries(await getElectronBackendHeaders(candidate))) {
+                headers.set(name, value);
+            }
+            const response = await fetch(url, { ...init, headers, signal });
 
             if (response.status === 404 || response.redirected) {
                 failures.push(`${candidate || "relative"} (${response.redirected ? "redirected" : "404"})`);
-                continue;
-            }
-
-            if (response.status === 500) {
-                return response;
-            }
-
-            if (!response.ok) {
-                failures.push(`${candidate || "relative"} (HTTP ${response.status})`);
                 continue;
             }
 
@@ -303,14 +236,7 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
         }
     }
 
-    // SILENT FAIL: If we are on a mobile device and can't reach the computer,
-    // return a successful but "offline" response so the app can stay in standalone mode.
-    if (isStaticCapacitorHost()) {
-        return new Response(JSON.stringify({ offline: true, assignments: [], announcements: [], discussions: [], quizzes: [], grades: [] }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-        });
-    }
-
-    throw new Error(`Agenda+ could not reach its local API. Run "npm run dev" from your PC.`);
+    throw new Error(candidates.length === 0
+        ? 'Automatic extraction and broader AI need a connected service. Open Optional AI and portal service to configure it. Text import and local practice remain available.'
+        : `Agenda+ could not reach the connected service (${failures.join('; ')}). Check the connection and access token.`);
 }

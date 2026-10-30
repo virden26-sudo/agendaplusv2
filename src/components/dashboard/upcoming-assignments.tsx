@@ -20,7 +20,7 @@ export function UpcomingAssignments() {
 
   const sortedAssignments = assignments
     .filter((a) => !a.completed)
-    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+    .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity));
 
   console.log("UpcomingAssignments:", {
     total: assignments.length,

@@ -45,3 +45,15 @@ app/src/main/res/xml/config.xml
 electron/node_modules/
 electron/dist/
 electron/build/
+
+.native-build/
+.next-server/
+electron/backend/
+android/keystore.properties
+*.jks
+*.keystore
+tsconfig.tsbuildinfo
+electron/capacitor.config.*
+
+/playwright-report/
+/test-results/

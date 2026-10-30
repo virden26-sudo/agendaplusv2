@@ -1,327 +1,44 @@
-
-"use client";
-
-import { useState } from "react";
-import { 
-  Check,
-  Loader2, 
-  BrainCircuit,
-  Database,
-  Calendar,
-  Trash2,
-  ExternalLink,
-  Smartphone,
-  ClipboardList
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { parsePortalDataOnDevice } from "@/lib/portal-sync-client";
-import { countPortalItems } from "@/lib/portal-text-parser";
-import { useAssignments } from "@/context/assignments-context";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { IosSafariBrowser } from "@/components/portal/ios-safari-browser";
-import { useUser } from "@/context/user-context";
-
+'use client';
+import {AiConnection} from '@/components/ai-connection';
+import {useState} from 'react';
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
+import {Button} from '@/components/ui/button';
+import {Textarea} from '@/components/ui/textarea';
+import {parsePortalDataOnDevice, openStudentPortal, type PortalSyncPayload} from '@/lib/portal-sync-client';
+import {countPortalItems} from '@/lib/portal-text-parser';
+import {useCourseworkImport} from '@/hooks/use-coursework-import';
+import {useUser} from '@/context/user-context';
+import {apiFetch} from '@/lib/api-config';
 export default function PortalPage() {
-  const { toast } = useToast();
-  const { addMultipleAssignments } = useAssignments();
-  const { portalUrl } = useUser();
-
-  const [portalText, setPortalText] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [extractedData, setExtractedData] = useState<any[] | null>(null);
-
-  const handleExtract = async () => {
-    if (!portalText.trim()) return;
-    
-    setIsProcessing(true);
+  const {portalUrl} = useUser();
+  const importCoursework = useCourseworkImport();
+  const [text, setText] = useState('');
+  const [data, setData] = useState<PortalSyncPayload | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const autoSync = async () => {
+    setBusy(true); setMessage('Opening the portal through your connected desktop service. Complete sign-in if requested.');
     try {
-      const result = parsePortalDataOnDevice(portalText);
-      setExtractedData(result.assignments || []);
-
-      toast({
-        title: "Extraction complete",
-        description: `Found ${countPortalItems(result)} items on this device.`,
-      });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Could not read that text",
-        description: "Copy your assignments list from the portal and try again.",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+      const response = await apiFetch('/api/parse-portal', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({portalUrl:portalUrl || 'https://navigate.nu.edu/d2l/home', mode:'manual'}), signal:AbortSignal.timeout(180000)});
+      const result = await response.json();
+      if (!response.ok || result.offline || !Array.isArray(result.assignments) || !Array.isArray(result.discussions) || !Array.isArray(result.quizzes) || !Array.isArray(result.announcements) || !Array.isArray(result.grades)) throw new Error(result.error || 'Automatic extraction needs a reachable desktop service. You can still paste portal text below.');
+      setData(result); setMessage('Review the extracted coursework before importing.');
+    } catch (error) {setMessage(error instanceof Error ? error.message : 'Automatic extraction failed. Paste portal text below.');}
+    finally {setBusy(false);}
   };
-
-  const confirmAndSync = () => {
-    if (extractedData && extractedData.length > 0) {
-      addMultipleAssignments(extractedData);
-      toast({
-        title: "BUDD-IE: Data Synchronized",
-        description: `Success! Imported ${extractedData.length} assignments to your agenda.`,
-      });
-      setPortalText("");
-      setExtractedData(null);
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-20">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold font-headline text-purple-600 flex items-center gap-2">
-          <BrainCircuit className="size-8" />
-          BUDD-IE Portal Sync
-        </h1>
-        <p className="text-muted-foreground">
-          Powered by BUDD-IE. High-precision local extraction for your academic portal.
-        </p>
-      </div>
-
-      <Tabs defaultValue="browser" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-8 bg-purple-100/50 p-1 h-12">
-            <TabsTrigger value="manual" className="flex items-center gap-2 text-base font-semibold data-[state=active]:bg-white data-[state=active]:text-purple-700">
-                <ClipboardList className="size-4" />
-                Manual Extraction
-            </TabsTrigger>
-            <TabsTrigger value="browser" className="flex items-center gap-2 text-base font-semibold data-[state=active]:bg-white data-[state=active]:text-purple-700">
-                <Smartphone className="size-4" />
-                iOS Safari View
-            </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="manual" className="mt-0 border-none p-0 focus-visible:ring-0">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                <div className="lg:col-span-3">
-                {!extractedData ? (
-                    <Card className="border-purple-200 shadow-xl overflow-hidden">
-                    <CardHeader className="bg-purple-50 border-b">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle className="text-xl text-purple-800">Direct Data Ingestion</CardTitle>
-                                <CardDescription>Paste your dashboard text to begin local analysis.</CardDescription>
-                            </div>
-                            <Button variant="outline" size="sm" onClick={() => window.open(portalUrl || "https://navigate.nu.edu/d2l/home", "_blank")}>
-                                <ExternalLink className="mr-2 size-3" />
-                                Open Portal
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="pt-6 space-y-6">
-                        <Textarea 
-                            placeholder="Paste the 'Course Schedule' or 'Upcoming Assignments' text from your portal here..."
-                            className="min-h-[400px] font-mono text-sm border-purple-100 focus-visible:ring-purple-500"
-                            value={portalText}
-                            onChange={(e) => setPortalText(e.target.value)}
-                            disabled={isProcessing}
-                        />
-                        
-                        <Button
-                            className="w-full h-14 text-lg font-bold bg-purple-600 hover:bg-purple-700 shadow-lg"
-                            onClick={handleExtract}
-                            disabled={!portalText.trim() || isProcessing}
-                        >
-                            {isProcessing ? (
-                            <>
-                                <Loader2 className="mr-2 animate-spin" />
-                                BUDD-IE Analyzing...
-                            </>
-                            ) : (
-                            <>
-                                <BrainCircuit className="mr-2" />
-                                Run BUDD-IE Extraction
-                            </>
-                            )}
-                        </Button>
-                    </CardContent>
-                    </Card>
-                ) : (
-                    <Card className="border-green-200 shadow-xl flex flex-col h-[700px]">
-                        <CardHeader className="bg-green-50 border-b flex-row justify-between items-center space-y-0 p-6">
-                            <div>
-                                <CardTitle className="text-2xl font-headline flex items-center gap-2 text-green-800">
-                                    <Check className="size-6 text-green-600" />
-                                    Extracted Findings
-                                </CardTitle>
-                                <CardDescription>BUDD-IE has mapped the following tasks from your data.</CardDescription>
-                            </div>
-                            <div className="flex gap-3">
-                                <Button variant="ghost" onClick={() => setExtractedData(null)}>
-                                    <Trash2 className="size-4 mr-2" />
-                                    Discard
-                                </Button>
-                                <Button className="bg-green-600 hover:bg-green-700 h-11 px-8 text-white font-bold" onClick={confirmAndSync}>
-                                    Confirm & Sync to Agenda
-                                </Button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="flex-1 p-0 overflow-hidden">
-                            <ScrollArea className="h-full p-8">
-                                <div className="space-y-6">
-                                    <h3 className="text-xl font-bold text-purple-700 flex items-center gap-2">
-                                        <Calendar className="size-5" />
-                                        Assignments ({extractedData.length})
-                                    </h3>
-                                    <div className="grid gap-3">
-                                        {extractedData.length === 0 ? (
-                                            <div className="text-center py-20 bg-muted/20 rounded-xl border border-dashed">
-                                                <p className="text-muted-foreground">No assignments identified. Please try copying a larger section of the portal.</p>
-                                            </div>
-                                        ) : (
-                                            extractedData.map((a, i) => (
-                                                <div key={i} className="p-4 rounded-xl border bg-white shadow-sm flex justify-between items-center group hover:border-purple-300 transition-colors">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="font-bold text-slate-800">{a.task}</span>
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="text-[10px]">{a.course}</Badge>
-                                                            <span className="text-xs text-muted-foreground">Due: {a.dueDate}</span>
-                                                        </div>
-                                                    </div>
-                                                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none">Ready</Badge>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
-                )}
-                </div>
-
-                <div className="flex flex-col gap-6">
-                    <Card className="border-purple-200 bg-purple-50/50 shadow-sm overflow-hidden">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-lg font-bold flex items-center gap-2 text-purple-900">
-                                <Sparkles className="size-5 text-purple-600" />
-                                Autonomous BUDD-IE Sync
-                            </CardTitle>
-                            <CardDescription className="text-purple-800/70">
-                                Best for desktop users. BUDD-IE opens a monitored browser and extracts data automatically.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="p-3 bg-white/50 rounded-lg border border-purple-100 text-xs text-purple-900">
-                                <p className="font-bold mb-1">Recommended for:</p>
-                                <ul className="list-disc list-inside space-y-1">
-                                    <li>First-time setup</li>
-                                    <li>Full semester rescans</li>
-                                    <li>Updating grades & discussions</li>
-                                </ul>
-                            </div>
-                            <Button 
-                                className="w-full h-12 bg-purple-700 hover:bg-purple-800 text-white font-bold"
-                                onClick={() => {
-                                    toast({
-                                        title: "BUDD-IE Triggered",
-                                        description: "Check your computer for a monitored browser window.",
-                                    });
-                                    // We can't call runPortalSync directly from here easily without context,
-                                    // but we can tell the user to use the 'Rescan' button in the sidebar.
-                                }}
-                            >
-                                <BrainCircuit className="mr-2 size-4" />
-                                Start Auto-Scrape
-                            </Button>
-                            <p className="text-[10px] text-center text-purple-600 italic">
-                                Note: This requires the Agenda+ dev service to be running.
-                            </p>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-purple-100 bg-purple-50/30">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-medium flex items-center gap-2 text-purple-800">
-                                <Database className="size-4" />
-                                BUDD-IE Protocol
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                                BUDD-IE operates entirely offline. Your data never leaves this device.
-                            </p>
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-2 text-[10px] text-purple-700 font-bold uppercase">
-                                    <Check className="size-3" />
-                                    Local LLM Inference
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] text-purple-700 font-bold uppercase">
-                                    <Check className="size-3" />
-                                    Zero Latency Parsing
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <div className="p-6 bg-gradient-to-br from-purple-600 to-indigo-700 rounded-2xl text-white shadow-lg flex flex-col gap-3">
-                        <div className="flex items-center gap-2">
-                            <BrainCircuit className="size-6" />
-                            <span className="font-bold">BUDD-IE Core</span>
-                        </div>
-                        <p className="text-xs opacity-90 leading-relaxed font-medium">
-                            This module uses BUDD-IE to scan for tasks across your entire course cycle.
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </TabsContent>
-
-        <TabsContent value="browser" className="mt-0 border-none p-0 focus-visible:ring-0">
-            <div className="flex flex-col lg:flex-row gap-8 items-start justify-center py-4">
-                <div className="w-full lg:w-[450px] shrink-0">
-                    <IosSafariBrowser initialUrl={portalUrl || "https://navigate.nu.edu/d2l/home"} />
-                </div>
-                <div className="flex-1 space-y-6 max-w-md">
-                    <Card className="border-purple-200">
-                        <CardHeader>
-                            <CardTitle className="text-purple-800 flex items-center gap-2">
-                                <Smartphone className="size-5" />
-                                Mobile Portal Preview
-                            </CardTitle>
-                            <CardDescription>
-                                Interacting with your portal in a mobile view can help verify that data is visible and accessible.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="p-4 bg-purple-50 rounded-lg border border-purple-100 text-sm text-purple-900 leading-relaxed">
-                                <p className="font-bold mb-2">How to use:</p>
-                                <ul className="list-disc list-inside space-y-2">
-                                    <li>Log in to your student portal within the iPhone simulator.</li>
-                                    <li>Navigate to your course home or upcoming assignments.</li>
-                                    <li>If automatic sync fails, you can copy the text from here and paste it in the "Manual Extraction" tab.</li>
-                                </ul>
-                            </div>
-                            <Button 
-                                variant="outline" 
-                                className="w-full border-purple-200 text-purple-700 hover:bg-purple-50"
-                                onClick={() => window.open(portalUrl || "https://navigate.nu.edu/d2l/home", "_blank")}
-                            >
-                                <ExternalLink className="mr-2 size-4" />
-                                Open in New Tab
-                            </Button>
-                        </CardContent>
-                    </Card>
-
-                    <div className="p-6 rounded-2xl bg-gradient-to-tr from-slate-800 to-slate-900 text-white shadow-xl">
-                        <h4 className="font-bold flex items-center gap-2 mb-2">
-                            <Sparkles className="size-4 text-yellow-400" />
-                            Pro Tip
-                        </h4>
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                            BUDD-IE works best when you are on the "Course Dashboard" or "Calendar" view of your portal. If you don&apos;t see data, try navigating to those sections first!
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
+  const rows = data ? [
+    ...data.assignments.map(a => ({title:a.task, course:a.course, due:a.dueDate, details:a.details, type:'Assignment'})),
+    ...data.quizzes.map(q => ({title:q.task, course:q.course, due:q.dueDate, details:q.details, type:'Quiz / Exam'})),
+    ...data.discussions.map(d => ({title:d.title, course:d.course, due:d.dueDate, details:d.content, type:'Discussion'})),
+    ...data.announcements.map(a => ({title:a.title, course:a.course, due:null, details:a.content, type:'Announcement'})),
+    ...data.grades.map(g => ({title:g.details || g.course, course:g.course, due:null, details:g.grade, type:'Grade'})),
+  ] : [];
+  return <div className="mx-auto max-w-4xl space-y-6"><AiConnection /><Card><CardHeader><CardTitle>Import coursework</CardTitle><CardDescription>Import assignments, discussions, quizzes, exams, announcements and grades. Instructions are kept for your personal tutor.</CardDescription></CardHeader><CardContent className="space-y-4">
+    <div className="flex flex-wrap gap-3"><Button variant="outline" onClick={() => openStudentPortal(portalUrl)}>Open school portal</Button><Button variant="outline" disabled={busy} onClick={() => void autoSync()}>{busy ? 'Reading portal…' : 'Extract with desktop service'}</Button></div>
+    <p className="text-sm text-muted-foreground">On any device, copy each course’s lists and instructions and paste them below. Include course names and section headings such as Assignments, Quizzes and Discussions. Missing deadlines stay unverified.</p>
+    <label htmlFor="portal-text" className="block font-medium">Portal text or syllabus</label><Textarea id="portal-text" className="min-h-64" value={text} onChange={e => setText(e.target.value)} />
+    <Button disabled={!text.trim() || busy} onClick={() => {const result = parsePortalDataOnDevice(text); setData(result); setMessage(`${countPortalItems(result)} items found. Review before importing.`);}}>Extract coursework</Button>
+    {message && <p role="status">{message}</p>}
+    {data && <section aria-label="Extracted coursework" className="space-y-4"><h2 className="font-semibold">Review {rows.length} items</h2>{rows.map((row,i) => <article key={i} className="rounded border p-3"><p className="text-sm text-muted-foreground">{row.type} · {row.course}</p><h3 className="font-semibold">{row.title}</h3><p>Due: {row.due || 'Unverified'}</p>{row.details && <p className="whitespace-pre-wrap text-sm">{row.details}</p>}</article>)}<Button disabled={!rows.length} onClick={() => {const count = importCoursework(data); setData(null); setText(''); setMessage(`Imported ${count} coursework items. Open Personal Tutor to test your understanding.`);}}>Confirm import</Button></section>}
+  </CardContent></Card></div>;
 }
-
-import { Sparkles } from "lucide-react";

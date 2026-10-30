@@ -14,7 +14,7 @@ export function QuizzesCard() {
     const {quizzes, loading} = useQuizzes();
 
     const upcomingQuizzes = [...quizzes]
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .sort((a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity))
         .slice(0, 5);
 
     const isOverdue = (date: Date) => new Date(date) < new Date() && !isToday(new Date(date));
@@ -55,9 +55,9 @@ export function QuizzesCard() {
                                         <p className="text-sm text-muted-foreground">{quiz.course} {quiz.questionCount ? ` • ${quiz.questionCount} questions` : ''}</p>
                                     </div>
                                     <Badge
-                                        variant={isOverdue(new Date(quiz.dueDate)) ? 'destructive' : isToday(new Date(quiz.dueDate)) ? 'secondary' : 'outline'}
+                                        variant={quiz.dueDate && isOverdue(quiz.dueDate) ? 'destructive' : quiz.dueDate && isToday(quiz.dueDate) ? 'secondary' : 'outline'}
                                         className="text-sm">
-                                        {format(new Date(quiz.dueDate), 'MMM d')}
+                                        {quiz.dueDate ? format(quiz.dueDate, 'MMM d') : 'Unverified'}
                                     </Badge>
                                 </div>
                             ))

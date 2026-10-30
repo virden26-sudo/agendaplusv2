@@ -1,89 +1,48 @@
-
-// This file is safe for both Node and Browser.
-// It will only initialize Genkit when running in a Node environment.
-
-const createShim = () => {
-  console.log("Genkit: Initializing browser shim.");
-
-  const flowNoop = (config: unknown, fn?: unknown) => {
-    const implementation = typeof config === 'function' ? config : fn;
-    const f = async (input: unknown) => {
-      console.warn(`Genkit flow "${(config as {name?: string})?.name || 'unknown'}" called in browser environment.`);
-      if (typeof implementation === 'function') {
-        return await implementation(input);
-      }
-      return { assignments: [], announcements: [], discussions: [] };
-    };
-    // Genkit flows are callable and also have a .run method
-    const flowObj = Object.assign(f, {
-      run: f,
-      config: config
-    });
-    return flowObj;
-  };
-
-  const promptNoop = (config: unknown) => {
-    const p = async (_input: unknown) => {
-      console.warn(`Genkit prompt "${(config as {name?: string})?.name || 'unknown'}" called in browser environment.`);
-      return { output: { assignments: [], announcements: [], discussions: [] } };
-    };
-    // Genkit prompts are callable and also have a .run method
-    const promptObj = Object.assign(p, {
-      run: p,
-      config: config
-    });
-    return promptObj;
-  };
-
-  return {
-    defineFlow: flowNoop,
-    definePrompt: promptNoop,
-    run: async (nameOrFn: unknown, fn?: unknown) => {
-      const actualFn = typeof nameOrFn === 'function' ? nameOrFn : fn;
-      if (typeof actualFn === 'function') return actualFn();
-      return null;
-    },
-    act: async (nameOrFn: unknown, fn?: unknown) => {
-      const actualFn = typeof nameOrFn === 'function' ? nameOrFn : fn;
-      if (typeof actualFn === 'function') return actualFn();
-      return null;
-    },
-    // Add other common Genkit methods if needed
-    generate: async () => ({ text: () => "AI is not available in browser.", output: () => null }),
-  };
+/** Small, server-side Ollama adapter. The filename preserves existing flow imports. */
+import {z} from 'zod';
+type GenerationOptions<T> = {
+  model?: string;
+  system?: string;
+  prompt?: string;
+  messages?: {role: string; content: {text?: string; media?: {url:string; contentType?:string}}[]}[];
+  config?: {num_ctx?: number; temperature?: number};
+  onChunk?: () => void;
+  output: {schema: z.ZodType<T>};
 };
-
-let aiInstance: ReturnType<typeof createShim> | any;
-
-if (typeof window === 'undefined') {
-  try {
-    // We are in Node.js (Build time or Server-side)
-    // Using require instead of import to avoid bundling issues in browser
-    const { genkit } = require('genkit');
-    const { ollama } = require('genkitx-ollama');
-
-    aiInstance = genkit({
-      plugins: [
-        ollama({
-          models: [
-            {name: 'budd-ie:latest'},
-            {name: 'llama3:latest'}
-          ],
-          serverAddress: 'http://127.0.0.1:11434',
-        }),
-      ],
-      model: 'ollama/budd-ie:latest',
-    });
-    console.log("Genkit: Node.js instance initialized.");
-  } catch (e) {
-    console.error("Genkit: Node.js initialization failed, using shim.", e);
-    aiInstance = createShim();
+export async function buddIEGenerate<T>(options: GenerationOptions<T>): Promise<{output:T}> {
+  if (typeof window !== 'undefined') throw new Error('AI generation requires the optional Ollama service.');
+  const messages: {role:string; content:string; images?:string[]}[] = [];
+  if (options.system) messages.push({role:'system',content:options.system});
+  if (options.prompt) messages.push({role:'user',content:options.prompt});
+  for (const message of options.messages || []) {
+    const images: string[] = [];
+    const texts: string[] = [];
+    for (const part of message.content) {
+      if (part.text) texts.push(part.text);
+      if (part.media) {
+        // PDFs require a text extractor; never pretend binary files are understood as plain text.
+        const image = part.media.url.match(/^data:image\/(?:png|jpeg|webp);base64,([\s\S]+)$/);
+        if (!image) throw new Error('Paste the document text or use a TXT export. This AI endpoint accepts text and supported images.');
+        images.push(image[1]);
+      }
+    }
+    messages.push({role:message.role,content:texts.join('\n'),...(images.length ? {images} : {})});
   }
-} else {
-  // Browser environment
-  aiInstance = createShim();
+  const base = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/+$/,'');
+  const response = await fetch(`${base}/api/chat`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, signal:AbortSignal.timeout(60000),
+    body:JSON.stringify({model:process.env.OLLAMA_MODEL || options.model?.replace(/^ollama\//,'') || 'budd-ie:latest', messages, stream:false, options:options.config, format:z.toJSONSchema(options.output.schema,{unrepresentable:'any'})}),
+  });
+  if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status}. Check the configured model and service.`);
+  const body = await response.json();
+  const content = body.message?.content;
+  if (typeof content !== 'string') throw new Error('Ollama returned no message.');
+  return {output:options.output.schema.parse(JSON.parse(content))};
 }
-
-export const ai = aiInstance;
-export const buddIEGenerate = aiInstance.generate;
-export default aiInstance;
+export const ai = {
+  generate:buddIEGenerate,
+  defineFlow<I,O>(config:{name:string; inputSchema:z.ZodType<I>; outputSchema:z.ZodType<O>}, handler:(input:I)=>Promise<O>) {
+    return async (input:I) => config.outputSchema.parse(await handler(config.inputSchema.parse(input)));
+  },
+};
+export default ai;

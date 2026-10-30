@@ -10,21 +10,10 @@ import { TasksProvider } from '@/context/tasks-context';
 import { UserProvider } from '@/context/user-context';
 import { AppShell } from '@/components/layout/app-shell';
 import { Loader2 } from 'lucide-react';
-import { Roboto, Dancing_Script } from 'next/font/google';
-
-const roboto = Roboto({
-  weight: ['400', '500', '700'],
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-roboto',
-});
-
-const dancingScript = Dancing_Script({
-  weight: ['700'],
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-dancing-script',
-});
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
+import '@fontsource/dancing-script/700.css';
 
 export const metadata: Metadata = {
   title: 'Agenda+ | Your Academic Sidekick',
@@ -42,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${roboto.variable} ${dancingScript.variable}`}>
+    <html lang="en" suppressHydrationWarning>
       <body>
         <Suspense fallback={
           <div className="flex items-center justify-center h-screen bg-background">
