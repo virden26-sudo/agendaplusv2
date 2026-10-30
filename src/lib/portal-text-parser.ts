@@ -356,9 +356,11 @@ export function parsePortalTextHeuristically(
     discussions.map((d) => `${d.title.toLowerCase()}|${(d.course || "").toLowerCase()}`)
   );
 
+  // Never scan the entire multi-section portal dump as assignments.
+  // That incorrectly turns quiz/discussion headings and structured JSON into tasks.
   const assignmentSection =
-    portalText.split(/===\s*SECTION:\s*Assignments\s*===/i)[1]?.split(/===\s*SECTION:/i)[0] ||
-    portalText;
+    portalText.split(/===\s*SECTION:\s*Assignments\s*===/i)[1]
+      ?.split(/===\s*(?:SECTION|STRUCTURED):/i)[0] || "";
 
   let currentCourse = "Course";
   for (const line of assignmentSection.split(/\r?\n/)) {
@@ -384,7 +386,9 @@ export function parsePortalTextHeuristically(
     details?: string | null
   ) => {
     const cleanedTask = normalizeAssignmentTitle(task);
-    if (!isValidAssignmentTitle(cleanedTask)) return;
+    if (!isValidAssignmentTitle(cleanedTask) ||
+        /^(?:===|STRUCTURED:|SECTION:)/i.test(cleanedTask) ||
+        /^(?:quizzes|discussions|grades|announcements)$/i.test(cleanedTask)) return;
 
     let resolvedDue = dueDate;
     if (!resolvedDue) {
