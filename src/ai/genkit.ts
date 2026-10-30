@@ -1,3 +1,4 @@
+import { ollamaModel, ollamaModelName, ollamaServerAddress } from './ollama-config';
 
 // This file is safe for both Node and Browser.
 // It will only initialize Genkit when running in a Node environment.
@@ -66,13 +67,12 @@ if (typeof window === 'undefined') {
       plugins: [
         ollama({
           models: [
-            {name: 'budd-ie:latest'},
-            {name: 'llama3:latest'}
+            {name: ollamaModelName}
           ],
-          serverAddress: 'http://127.0.0.1:11434',
+          serverAddress: ollamaServerAddress,
         }),
       ],
-      model: 'ollama/budd-ie:latest',
+      model: ollamaModel,
     });
     console.log("Genkit: Node.js instance initialized.");
   } catch (e) {

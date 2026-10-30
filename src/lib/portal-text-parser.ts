@@ -74,7 +74,6 @@ function extractD2LAssignmentRecords(
   const records: { task: string; dueDate: string | null }[] = [];
   const patterns = [
     /((?:Week\s*\d+\s*)?Assignment\s*\d+\s*:[^\n]+?)(?=\s*(?:Week\s*\d+\s*)?Assignment\s*\d+\s*:|Feedback\s*:|$|\d+\s*Submission)/gi,
-    /(Assignment\s*\d+\s*:[^\n]{8,200})/gi,
   ];
 
   for (const pattern of patterns) {
@@ -224,7 +223,7 @@ function parseStructuredSections(portalText: string, currentDate: string): Porta
     const rawTask = (row.task || "").trim();
     if (!rawTask || !isValidAssignmentTitle(rawTask)) return;
     const task = normalizeAssignmentTitle(rawTask);
-    let dueDate = row.dueDate ? normalizeDate(row.dueDate, new Date().getFullYear()) : null;
+    let dueDate = row.dueDate ? normalizeDate(row.dueDate, Number(currentDate.slice(0, 4))) : null;
     if (!dueDate) {
       const inferred = inferDueDateForAssignment(task, {
         details: row.details,
@@ -235,7 +234,7 @@ function parseStructuredSections(portalText: string, currentDate: string): Porta
     }
 
     const course = sanitizeCourseName(row.course || fallbackCourse);
-    const key = `assign|${task.toLowerCase()}`;
+    const key = `assign|${course.toLowerCase()}|${task.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
 
@@ -251,7 +250,7 @@ function parseStructuredSections(portalText: string, currentDate: string): Porta
     const rawTask = (row.task || "").trim();
     if (!rawTask || /assignment\s*\d+\s*:/i.test(rawTask) || !isValidQuizTitle(rawTask)) return;
     const task = normalizeAssignmentTitle(rawTask);
-    let dueDate = row.dueDate ? normalizeDate(row.dueDate, new Date().getFullYear()) : null;
+    let dueDate = row.dueDate ? normalizeDate(row.dueDate, Number(currentDate.slice(0, 4))) : null;
     if (!dueDate) {
       const inferred = inferDueDateForAssignment(task, {
         details: row.details,
@@ -261,7 +260,7 @@ function parseStructuredSections(portalText: string, currentDate: string): Porta
       dueDate = inferred?.dueDate ?? null;
     }
     const course = sanitizeCourseName(row.course || fallbackCourse);
-    const key = `quiz|${task.toLowerCase()}`;
+    const key = `quiz|${course.toLowerCase()}|${task.toLowerCase()}`;
     if (seen.has(key)) return;
     seen.add(key);
 
@@ -285,15 +284,16 @@ function parseStructuredSections(portalText: string, currentDate: string): Porta
     }
 
     const course = sanitizeCourseName(parsed?.course || "Course");
-    const items = parsed?.items || [];
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
 
     for (const row of items) {
+      if (!row || typeof row.task !== "string") continue;
       if (section.includes("quiz")) {
         pushQuiz(row, course);
       } else if (section.includes("discussion")) {
         const task = normalizeAssignmentTitle(row.task || "");
         if (!isValidDiscussionTitle(task)) continue;
-        const dueDate = row.dueDate ? normalizeDate(row.dueDate, new Date().getFullYear()) : null;
+        const dueDate = row.dueDate ? normalizeDate(row.dueDate, Number(currentDate.slice(0, 4))) : null;
         const key = `discussion|${task.toLowerCase()}|${course.toLowerCase()}`;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -341,16 +341,27 @@ export function parsePortalTextHeuristically(
   currentDate = new Date().toLocaleDateString("en-CA")
 ): PortalParseResult {
   const structured = parseStructuredSections(portalText, currentDate);
+  const authoritative = new Set<string>();
+  for (const block of portalText.matchAll(/===\s*STRUCTURED:\s*(\w+)\s*===\s*([\s\S]*?)(?=\n===|$)/gi)) {
+    try {
+      if (Array.isArray(JSON.parse(block[2].trim())?.items)) authoritative.add(block[1].toLowerCase());
+    } catch { /* Malformed structured data can still use the isolated text section. */ }
+  }
+  const rawSection = (name: string) => {
+    if (authoritative.has(name.toLowerCase())) return "";
+    return portalText.split(new RegExp(`===\\s*SECTION:\\s*${name}\\s*===`, "i"))[1]
+      ?.split(/===\s*(?:SECTION|STRUCTURED|UNAVAILABLE):/i)[0] || "";
+  };
   const anchorYear = Number(currentDate.slice(0, 4)) || new Date().getFullYear();
   const assignments: ParsedAssignment[] = [...(structured?.assignments ?? [])];
   const quizzes: ParsedAssignment[] = [...(structured?.quizzes ?? [])];
   const discussions: PortalParseResult["discussions"] = [...(structured?.discussions ?? [])];
   const grades: PortalParseResult["grades"] = [...(structured?.grades ?? [])];
   const seenAssignments = new Set<string>(
-    assignments.map((a) => `${a.task.toLowerCase()}|${a.dueDate}|${(a.course || "").toLowerCase()}`)
+    assignments.map((a) => `${a.task.toLowerCase()}|${(a.course || "").toLowerCase()}`)
   );
   const seenQuizzes = new Set<string>(
-    quizzes.map((q) => `${q.task.toLowerCase()}|${q.dueDate}|${(q.course || "").toLowerCase()}`)
+    quizzes.map((q) => `${q.task.toLowerCase()}|${(q.course || "").toLowerCase()}`)
   );
   const seenDiscussions = new Set<string>(
     discussions.map((d) => `${d.title.toLowerCase()}|${(d.course || "").toLowerCase()}`)
@@ -359,10 +370,9 @@ export function parsePortalTextHeuristically(
   // Never scan the entire multi-section portal dump as assignments.
   // That incorrectly turns quiz/discussion headings and structured JSON into tasks.
   const assignmentSection =
-    portalText.split(/===\s*SECTION:\s*Assignments\s*===/i)[1]
-      ?.split(/===\s*(?:SECTION|STRUCTURED):/i)[0] || "";
+    rawSection("Assignments");
 
-  let currentCourse = "Course";
+  let currentCourse = structured?.assignments[0]?.course || structured?.quizzes[0]?.course || "Course";
   for (const line of assignmentSection.split(/\r?\n/)) {
     const trimmed = line.replace(/\s+/g, " ").trim();
     if (!trimmed || isIrrelevantPortalLine(trimmed) || /quiz\s*list/i.test(trimmed)) continue;
@@ -404,7 +414,7 @@ export function parsePortalTextHeuristically(
       : sanitizeCourseName(course);
     if (isJunkCourseName(normalizedCourse)) return;
 
-    const key = cleanedTask.toLowerCase();
+    const key = `${cleanedTask.toLowerCase()}|${normalizedCourse.toLowerCase()}`;
     if (seenAssignments.has(key)) return;
     seenAssignments.add(key);
 
@@ -436,7 +446,7 @@ export function parsePortalTextHeuristically(
       resolvedDue = inferred?.dueDate ?? null;
     }
     const normalizedCourse = sanitizeCourseName(course);
-    const key = cleanedTask.toLowerCase();
+    const key = `${cleanedTask.toLowerCase()}|${normalizedCourse.toLowerCase()}`;
     if (seenQuizzes.has(key)) return;
     seenQuizzes.add(key);
 
@@ -468,7 +478,7 @@ export function parsePortalTextHeuristically(
   }
 
   const quizSection =
-    portalText.split(/===\s*SECTION:\s*Quizzes\s*===/i)[1]?.split(/===\s*SECTION:/i)[0] || "";
+    rawSection("Quizzes");
   const quizPattern =
     /((?:Week\s*\d+\s*)?Quiz\s*\d+\s*:[^\n]+?)(?=\s*(?:Week\s*\d+\s*)?Quiz\s*\d+\s*:|Feedback\s*:|$|\d+\s*Submission)/gi;
   let quizMatch: RegExpExecArray | null;
@@ -484,8 +494,7 @@ export function parsePortalTextHeuristically(
   }
 
   const discussionSection =
-    portalText.split(/===\s*SECTION:\s*Discussions\s*===/i)[1]?.split(/===\s*SECTION:/i)[0] ||
-    "";
+    rawSection("Discussions");
   const discussionLines = discussionSection
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -527,8 +536,7 @@ export function parsePortalTextHeuristically(
 
   const announcements: PortalItem["announcements"] = [...(structured?.announcements ?? [])];
   const announcementSection =
-    portalText.split(/===\s*SECTION:\s*Announcements\s*===/i)[1]?.split(/===\s*SECTION:/i)[0] ||
-    "";
+    rawSection("Announcements");
   const seenAnnouncements = new Set(
     announcements.map((a) => (a.title || "").toLowerCase())
   );
@@ -552,8 +560,7 @@ export function parsePortalTextHeuristically(
   const resolvedDiscussions = discussions;
 
   const gradesSection =
-    portalText.split(/===\s*SECTION:\s*Grades\s*===/i)[1]?.split(/===\s*SECTION:/i)[0] ||
-    "";
+    rawSection("Grades");
   if (gradesSection) {
     let gradeCourse = currentCourse;
     for (const line of gradesSection.split(/\r?\n/)) {

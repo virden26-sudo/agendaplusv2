@@ -1,3 +1,4 @@
+import { ollamaModel } from '@/ai/ollama-config';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
@@ -23,7 +24,7 @@ const parseAssignmentFlow = ai.defineFlow(
     try {
       const cleanedAssignmentText = input.assignmentText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/budd-ie:latest',
+        model: ollamaModel,
         config: {
           num_ctx: 16384,
           temperature: 0.1,
