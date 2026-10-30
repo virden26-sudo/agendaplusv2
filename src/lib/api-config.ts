@@ -78,9 +78,13 @@ export const getStaticApiBaseCandidates = (manualOverride?: string) => {
         auto.push(cached);
     }
 
-    auto.push(...defaultLocalApiUrls());
+    // A phone's localhost is the phone, not the user's desktop backend.
+    if (platform !== "android" && platform !== "ios") {
+        auto.push(...defaultLocalApiUrls());
+    }
 
-    if (platform === "android") {
+    // 10.0.2.2 is only reachable from the Android emulator, not physical phones.
+    if (platform === "android" && !Capacitor.isNativePlatform()) {
         auto.push(`http://10.0.2.2:${API_PORT}`);
     }
 
@@ -118,7 +122,7 @@ export const getStaticApiBaseCandidates = (manualOverride?: string) => {
         ];
     }
 
-    return unique.length > 0 ? unique : defaultLocalApiUrls();
+    return unique.length > 0 ? unique : (platform === "android" || platform === "ios" ? [] : defaultLocalApiUrls());
 };
 
 /** Full candidate list including Electron sidecar URLs (highest priority after cache). */
@@ -273,7 +277,7 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
             // Fast timeout for non-localhost candidates to prevent UI lag
             const signal = candidate.includes('localhost') || candidate.includes('127.0.0.1') || candidate === ''
                 ? init?.signal
-                : AbortSignal.any([init?.signal || new AbortController().signal, AbortSignal.timeout(2000)]);
+                : AbortSignal.any([init?.signal || new AbortController().signal, AbortSignal.timeout(15000)]);
 
             const response = await fetch(url, { ...init, signal });
 
@@ -282,7 +286,9 @@ export async function apiFetch(endpoint: string, init?: RequestInit, manualOverr
                 continue;
             }
 
-            if (response.status === 500) {
+            // Authentication and server errors belong to the selected backend.
+            // Do not hide them by trying another server or claiming offline success.
+            if (response.status === 401 || response.status === 403 || response.status >= 500) {
                 return response;
             }
 
