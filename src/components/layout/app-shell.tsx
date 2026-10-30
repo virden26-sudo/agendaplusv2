@@ -429,6 +429,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 quizzes: result.quizzes?.length ?? 0,
                 grades: result.grades?.length ?? 0
             });
+            const warnings = (result as { warnings?: string[] }).warnings || [];
+            if (warnings.length) setSyncError(warnings.join(" "));
             const imported = processSyncResultWithBreakdown(result);
 
             // Only throw error if we actually reached the server and it returned nothing
@@ -448,8 +450,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     imported.announcements ? `${imported.announcements} announcement${imported.announcements === 1 ? "" : "s"}` : null,
                 ].filter(Boolean);
                 toast({
-                    title: "BUDD-IE: Data Synchronized",
-                    description: parts.length ? `Imported ${parts.join(", ")}.` : `Imported ${imported.total} items from your portal.`,
+                    title: warnings.length ? "Brightspace sync incomplete" : "BUDD-IE: Data Synchronized",
+                    description: (parts.length ? `Imported ${parts.join(", ")}.` : `Imported ${imported.total} items from your portal.`) + (warnings.length ? ` ${warnings.join(" ")}` : ""),
                 });
             }
         } catch (error: unknown) {
