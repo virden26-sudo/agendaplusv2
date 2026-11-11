@@ -1,3 +1,4 @@
+import { ollamaModel, requireOllamaModel } from '@/ai/ollama-config';
 
 import {ai} from '@/ai/genkit';
 import {z} from 'zod';
@@ -83,6 +84,7 @@ const PortalParserInputSchema = z.object({
 });
 
 const PortalParserOutputSchema = z.object({
+    warnings: z.array(z.string()).optional(),
     assignments: z.array(AssignmentSchema),
     announcements: z.array(AnnouncementSchema),
     discussions: z.array(DiscussionSchema),
@@ -248,11 +250,18 @@ const parsePortalFlow = ai.defineFlow(
       console.warn("BUDD-IE: Scraper returned structured D2L data but parser extracted 0 items — check title/due-date rules.");
     }
 
+    const unavailable = [...textToParse.matchAll(/===\s*UNAVAILABLE:\s*(\w+)\s*===/gi)].map(match => match[1]);
+    const warnings = unavailable.map(section => `${section} could not be read from Brightspace. Sync is incomplete.`);
+    if (deterministicCount === 0 && unavailable.length) {
+      throw new Error(`Brightspace sync incomplete: ${unavailable.join(", ")} could not be read, and no coursework was extracted.`);
+    }
+    // Structured D2L data, including empty lists, must never be reinterpreted by AI.
     // Reliable path: scraped D2L section text parses without waiting on Ollama.
-    if (deterministicCount > 0) {
+    if (deterministicCount > 0 || /===\s*STRUCTURED:/i.test(textToParse)) {
       console.log("BUDD-IE: Using deterministic extraction (Ollama skipped).");
       return {
         ...deterministicResult,
+        warnings,
         grades: (deterministicResult as any).grades || [],
       };
     }
@@ -260,8 +269,9 @@ const parsePortalFlow = ai.defineFlow(
     console.log("BUDD-IE: No heuristic matches; parsing portal data via Ollama...");
 
     try {
+      await requireOllamaModel();
       const { output } = await ai.generate({
-        model: 'ollama/budd-ie:latest',
+        model: ollamaModel,
         config: {
           temperature: 0.1,
           num_ctx: 16384, // Increase context window for large portal data

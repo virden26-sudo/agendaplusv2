@@ -28,7 +28,7 @@ Starts on port **3000**. Uses Webpack bundler explicitly.
 
 - The lockfile (`package-lock.json`) may be out of sync with `package.json`. Use `npm install --legacy-peer-deps` instead of `npm ci`.
 - `react-markdown` is imported in `src/app/tutor/page.tsx` but not listed in `package.json`, causing a typecheck error. This is a pre-existing issue.
-- The AI features (natural-language assignment input, tutor) require a local Ollama server at `http://127.0.0.1:11434` with model `GenesisAi-Standalone`. These are not required for the core app functionality.
+- The AI features (natural-language assignment input, tutor) require a local Ollama server at `http://127.0.0.1:11434` with `OLLAMA_MODEL` set to an installed model (see `.env.example`). These are not required for the core app functionality.
 - Next.js warns about a duplicate page: `src/app/page.jsx` and `src/app/page.tsx` both resolve to `/`. This is cosmetic.
 
 ### Playwright E2E Tests

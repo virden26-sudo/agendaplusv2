@@ -1,3 +1,4 @@
+import { ollamaModel } from '@/ai/ollama-config';
 import {ai, buddIEGenerate} from '@/ai/genkit';
 import {z} from 'genkit';
 import {PortalDataSchema} from '@/ai/schemas';
@@ -12,7 +13,7 @@ const extractItemsFlow = ai.defineFlow(
         const currentDate = new Date().toLocaleDateString('en-CA');
         const cleanedSyllabusText = syllabusText.replace(/[^\S\r\n]+/g, ' ').trim();
         const {output} = await buddIEGenerate({
-            model: 'ollama/budd-ie:latest',
+            model: ollamaModel,
             config: {
                 num_ctx: 16384,
                 temperature: 0.1,

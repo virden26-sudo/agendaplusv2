@@ -1,3 +1,4 @@
+import { ollamaModel } from '@/ai/ollama-config';
 /**
  * @fileOverview A flow that parses syllabus text to extract assignments.
  *
@@ -42,7 +43,7 @@ const parseSyllabusTextFlow = ai.defineFlow(
     try {
       const cleanedSyllabusText = input.syllabusText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/budd-ie:latest',
+        model: ollamaModel,
         config: {
           num_ctx: 16384,
           temperature: 0.1,

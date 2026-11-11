@@ -1,3 +1,4 @@
+import { ollamaModel } from '@/ai/ollama-config';
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { AssignmentSchema } from '@/ai/schemas/assignment';
@@ -25,7 +26,7 @@ const parseSyllabusFlow = ai.defineFlow(
     console.log("BUDD-IE: Analyzing syllabus file via Ollama...");
     try {
       const { output } = await ai.generate({
-        model: 'ollama/budd-ie:latest',
+        model: ollamaModel,
         config: {
           num_ctx: 16384,
           temperature: 0.1,

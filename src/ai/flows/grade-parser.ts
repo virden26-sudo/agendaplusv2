@@ -1,3 +1,4 @@
+import { ollamaModel } from '@/ai/ollama-config';
 /**
  * @fileOverview A flow that parses grade information from raw text.
  *
@@ -40,7 +41,7 @@ const parseGradesFlow = ai.defineFlow(
     try {
       const cleanedGradesText = input.gradesText.replace(/[^\S\r\n]+/g, ' ').trim();
       const { output } = await ai.generate({
-        model: 'ollama/budd-ie:latest',
+        model: ollamaModel,
         config: {
           num_ctx: 16384,
           temperature: 0.1,
