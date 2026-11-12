@@ -92,7 +92,7 @@
     text-fill-color: transparent;
   }
   .font-header {
-    font-family: 'Dancing Script', cursive;
+    font-family: 'Dancing Script', 'Segoe Script', cursive;
     font-weight: 700;
     font-style: italic;
   }

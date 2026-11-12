@@ -2,6 +2,10 @@
 const nextConfig = {
   output: 'export',
   allowedDevOrigins: ['localhost', '127.0.0.1', '*', '192.168.137.1', '192.168.137.*', '172.17.101.50', '172.17.101.*', '192.168.56.1', '192.168.56.*'],
+  experimental: {
+    // Avoid simultaneous route-output directory creation races on Windows.
+    cpus: process.platform === 'win32' ? 1 : undefined,
+  },
   // If you are using a custom domain/CDN, it MUST have http:// or https://
   // If you are just running locally, it's safest to leave this as undefined or '/'
   // assetPrefix: process.env.NODE_ENV === 'production' ? 'https://your-cdn.com' : undefined,

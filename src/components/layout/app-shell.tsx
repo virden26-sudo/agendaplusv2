@@ -673,6 +673,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         "/discussions": "Discussions",
         "/announcements": "Announcements",
         "/study": "Study Hub",
+        "/tasks": "Tasks",
+        "/quizzes": "Quizzes & Exams",
+        "/resources": "Resources",
+        "/tutor": "AI Tutor",
+        "/live": "Live Session",
     };
 
     const pageTitle = pageTitles[pathname] || "";
@@ -742,11 +747,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         <SidebarMenuItem>
                             <SidebarMenuButton
                                 asChild
-                                isActive={pathname === "/study" && !pathname.startsWith("/study/")}
+                                isActive={pathname === "/live" && !pathname.startsWith("/live/")}
                                 className="justify-start"
                                 tooltip="Live Session"
                             >
-                                <Link href="/study">
+                                <Link href="/live">
                                     <Video className="mr-2 size-4" />
                                     <span className="group-data-[collapsible=icon]:hidden">Live Session</span>
                                 </Link>

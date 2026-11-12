@@ -11,9 +11,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        body: ['var(--font-roboto)', 'sans-serif'],
-        headline: ['var(--font-dancing-script)', 'cursive'],
-        header: ['var(--font-dancing-script)', 'cursive'],
+        body: ['Roboto', 'Arial', 'sans-serif'],
+        headline: ['Dancing Script', 'Segoe Script', 'cursive'],
+        header: ['Dancing Script', 'Segoe Script', 'cursive'],
         code: ['monospace'],
       },
       colors: {
