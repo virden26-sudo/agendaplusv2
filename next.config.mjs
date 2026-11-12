@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  // Android packages static assets; cloud deployments run Next.js API routes.
+  ...(process.env.AGENDA_CLOUD_SERVER === '1' ? {} : { output: 'export' }),
   allowedDevOrigins: ['localhost', '127.0.0.1', '*', '192.168.137.1', '192.168.137.*', '172.17.101.50', '172.17.101.*', '192.168.56.1', '192.168.56.*'],
   experimental: {
     // Avoid simultaneous route-output directory creation races on Windows.
