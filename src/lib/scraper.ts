@@ -557,7 +557,18 @@ async function runScrapingMission(
             }
             throw new Error('No Chrome or Edge installation found.');
         }
-        return '/usr/bin/google-chrome';
+        // Cloud containers may install Chromium rather than Google Chrome.
+        const candidates = [
+            process.env.PUPPETEER_EXECUTABLE_PATH,
+            '/usr/bin/google-chrome',
+            '/usr/bin/chromium',
+            '/usr/bin/chromium-browser',
+        ].filter((candidate): candidate is string => Boolean(candidate));
+        const executable = candidates.find((candidate) => fs.existsSync(candidate));
+        if (!executable) {
+            throw new Error('No Chromium/Chrome executable found on the server.');
+        }
+        return executable;
     }
 
     const executablePath = getExecutablePath();
