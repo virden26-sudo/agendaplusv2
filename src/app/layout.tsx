@@ -9,6 +9,8 @@ import { QuizzesProvider } from '@/context/quizzes-context';
 import { TasksProvider } from '@/context/tasks-context';
 import { UserProvider } from '@/context/user-context';
 import { AppShell } from '@/components/layout/app-shell';
+import { AgendaAuthProvider } from '@/context/agenda-auth-context';
+import { CloudAccountBar } from '@/components/cloud-account-bar';
 import { Loader2 } from 'lucide-react';
 
 export const metadata: Metadata = {
@@ -34,6 +36,8 @@ export default function RootLayout({
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
           </div>
         }>
+          <AgendaAuthProvider>
+          <CloudAccountBar />
           <UserProvider>
             <TasksProvider>
               <QuizzesProvider>
@@ -49,6 +53,7 @@ export default function RootLayout({
               </QuizzesProvider>
             </TasksProvider>
           </UserProvider>
+          </AgendaAuthProvider>
         </Suspense>
         <Toaster />
       </body>
