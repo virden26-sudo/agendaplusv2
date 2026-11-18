@@ -11,7 +11,7 @@ import { agendaFirestore } from "@/lib/firebase";
  * and avoids writing remote snapshots straight back to the server.
  * Conflict policy: last successful document write wins for concurrent edits.
  */
-export function useCloudCollection<T extends { id: string }>(
+export function useCloudCollection<T extends { id?: string }>(
   key: "assignments" | "tasks" | "grades" | "quizzes",
   items: T[],
   setItems: Dispatch<SetStateAction<T[]>>,
@@ -39,8 +39,8 @@ export function useCloudCollection<T extends { id: string }>(
       if (!ready.current) {
         // Initial migration: preserve all records from both sources.
         // Remote records win if the same ID exists on both devices.
-        const combined = new Map(current.current.map(item => [item.id, item]));
-        for (const item of remote) combined.set(item.id, item);
+        const combined = new Map(current.current.map(item => [item.id || JSON.stringify(item), item]));
+        for (const item of remote) combined.set(item.id || JSON.stringify(item), item);
         const merged = [...combined.values()];
         const serialized = JSON.stringify(merged);
         suppress.current = serialized;
