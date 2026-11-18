@@ -34,7 +34,10 @@ export function useCloudCollection<T extends { id?: string }>(
     if (!account || !initialized) return;
 
     const target = doc(agendaFirestore(), "users", account.uid, "data", key);
-    const unsubscribe = onSnapshot(target, snapshot => {
+    const unsubscribe = onSnapshot(target, { includeMetadataChanges: true }, snapshot => {
+      // A cached empty snapshot is not proof the server has no records.
+      // Wait for the server before merging or migrating local data.
+      if (!ready.current && snapshot.metadata.fromCache) return;
       const remote = snapshot.exists() && Array.isArray(snapshot.data().items)
         ? (snapshot.data().items as T[]).map(value => reviveRef.current(value))
         : [];
