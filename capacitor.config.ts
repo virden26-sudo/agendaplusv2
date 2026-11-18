@@ -4,6 +4,12 @@ const config: CapacitorConfig = {
   appId: 'com.example.agendaplus',
   appName: 'Agenda+',
   webDir: 'out',
+  plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: true,
+      providers: ['google.com'],
+    },
+  },
   server: {
     // This allows the app to load from local assets (FinalA+)
     // instead of trying to find an external server.
