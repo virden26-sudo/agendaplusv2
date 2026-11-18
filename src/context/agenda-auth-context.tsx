@@ -1,8 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
+import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signInWithCredential, signOut, type User } from "firebase/auth";
 import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { agendaAuth } from "@/lib/firebase";
 
 type AuthState = {
@@ -33,9 +34,11 @@ export function AgendaAuthProvider({ children }: { children: ReactNode }) {
     try {
       const provider = new GoogleAuthProvider();
       if (Capacitor.isNativePlatform()) {
-        // Firebase web redirect needs a hosted auth handler on native apps.
-        // Do not silently claim native sign-in works until configured and tested.
-        throw new Error("Native Google sign-in requires an Android auth redirect/deep-link configuration.");
+        const result = await FirebaseAuthentication.signInWithGoogle();
+        const token = result.credential?.idToken;
+        if (!token) throw new Error("Google sign-in did not return an ID token.");
+        await signInWithCredential(agendaAuth(), GoogleAuthProvider.credential(token));
+        return;
       }
       await signInWithPopup(agendaAuth(), provider);
     } catch (err) {
@@ -45,6 +48,7 @@ export function AgendaAuthProvider({ children }: { children: ReactNode }) {
 
   async function signOutAccount() {
     try {
+      if (Capacitor.isNativePlatform()) await FirebaseAuthentication.signOut();
       await signOut(agendaAuth());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-out failed");
