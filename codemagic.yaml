@@ -1,6 +1,7 @@
 workflows:
   agenda-android-debug:
     name: Agenda+ Android Debug APK
+    instance_type: mac_mini_m2
     max_build_duration: 120
     environment:
       java: 21
