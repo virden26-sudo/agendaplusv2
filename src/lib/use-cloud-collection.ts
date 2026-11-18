@@ -24,6 +24,8 @@ export function useCloudCollection<T extends { id?: string }>(
   const suppress = useRef<string | null>(null);
   const lastSent = useRef<string | null>(null);
   current.current = items;
+  const reviveRef = useRef(revive);
+  reviveRef.current = revive;
 
   useEffect(() => {
     ready.current = false;
@@ -34,7 +36,7 @@ export function useCloudCollection<T extends { id?: string }>(
     const target = doc(agendaFirestore(), "users", account.uid, "data", key);
     const unsubscribe = onSnapshot(target, snapshot => {
       const remote = snapshot.exists() && Array.isArray(snapshot.data().items)
-        ? (snapshot.data().items as T[]).map(revive)
+        ? (snapshot.data().items as T[]).map(value => reviveRef.current(value))
         : [];
       if (!ready.current) {
         // Initial migration: preserve all records from both sources.
