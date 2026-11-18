@@ -1,4 +1,5 @@
 "use client";
+import { useCloudCollection } from "@/lib/use-cloud-collection";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { Course } from '@/ai/schemas/course';
@@ -33,6 +34,7 @@ function loadStoredCourses(): Course[] {
 export function GradesProvider({ children }: { children: ReactNode }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  useCloudCollection("grades", courses, setCourses, isInitialized, (c) => c);
 
   useEffect(() => {
     setCourses(loadStoredCourses());
