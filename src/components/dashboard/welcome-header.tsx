@@ -26,7 +26,7 @@ export function WelcomeHeader() {
       <p className="text-muted-foreground">
         {loading ? 'Loading your agenda...' : upcomingCount > 0 
           ? `You have ${upcomingCount} upcoming assignment${upcomingCount > 1 ? 's' : ''}. Keep up the great work.`
-          : `You have no upcoming assignments. Great job!`}
+          : `No upcoming assignments saved locally. Check portal sync to verify your deadlines.`}
       </p>
     </div>
   );
