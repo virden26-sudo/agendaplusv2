@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Capacitor } from "@capacitor/core";
 import {
     ArrowLeft,
     Book,
@@ -372,6 +373,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const runPortalSync = React.useCallback(async (mode: "startup" | "manual" | "background") => {
         setSyncError(null);
         if (!mountedRef.current) return;
+        // Mobile static builds have no Node/Puppeteer backend. Use the existing local import flow.
+        if (["android", "ios"].includes(Capacitor.getPlatform())) {
+            if (mode === "manual") setPortalSyncOpen(true);
+            return;
+        }
         if (syncingRef.current) {
             console.log(`AppShell: runPortalSync bypassed, sync is already in progress.`);
             return;
