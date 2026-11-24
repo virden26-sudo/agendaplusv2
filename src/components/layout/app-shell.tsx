@@ -546,7 +546,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             !assignmentsLoading &&
             !portalLoading &&
             portalUrl &&
-            (dashboardEmpty || hasPersistentPortalSession);
+            (Capacitor.getPlatform() === "android" || dashboardEmpty || hasPersistentPortalSession);
 
         console.log("AppShell: Sync check", {
             hasPersistentPortalSession,
@@ -570,6 +570,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             }, 0);
         }
     }, [titleVisible, announcements.length, assignments.length, assignmentsLoading, discussions.length, hasAttemptedStartupSync, hasPersistentPortalSession, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
+
+    React.useEffect(() => {
+        if (Capacitor.getPlatform() !== "android" || titleVisible || !isUserLoaded || !user || !portalUrl || assignmentsLoading || portalLoading) return;
+        const refresh = () => {
+            if (document.visibilityState !== "visible" || !navigator.onLine || syncingRef.current) return;
+            const last = Number(readLocalStorage("lastAutoSync") || 0);
+            if (Date.now() - last >= 5 * 60 * 1000) void runPortalSync("background");
+        };
+        window.addEventListener("online", refresh);
+        document.addEventListener("visibilitychange", refresh);
+        return () => {
+            window.removeEventListener("online", refresh);
+            document.removeEventListener("visibilitychange", refresh);
+        };
+    }, [titleVisible, isUserLoaded, user, portalUrl, assignmentsLoading, portalLoading, runPortalSync]);
 
     React.useEffect(() => {
         const handleUnload = () => {
