@@ -383,14 +383,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (Capacitor.getPlatform() === "android") {
             if (syncingRef.current) return;
             syncingRef.current = true;
+            setIsSyncing(true);
             try {
                 const { text } = await nativePortal.open({ url: portalUrl.trim(), automatic: true });
-                const imported = processSyncResultWithBreakdown(parsePortalDataOnDevice(text));
-                if (!imported.total) throw new Error("No coursework found in portal.");
+                const parsed = parsePortalDataOnDevice(text);
+                if (!(parsed.assignments.length + parsed.quizzes.length + parsed.discussions.length)) throw new Error("No coursework found in portal. Existing data retained.");
+                const imported = processSyncResultWithBreakdown(parsed);
                 if (mode === "manual") toast({ title: "Portal synchronized", description: `Imported ${imported.total} items.` });
             } catch (error) {
-                if (mode === "manual") toast({ title: "Portal sync incomplete", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+                setSyncError(error instanceof Error ? error.message : String(error));
+                toast({ title: "Portal sync incomplete", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
             } finally {
+                setIsSyncing(false);
                 syncingRef.current = false;
             }
             return;
