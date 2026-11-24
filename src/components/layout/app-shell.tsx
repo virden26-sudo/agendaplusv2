@@ -105,6 +105,11 @@ type PortalSyncResult = PortalSyncDialogResult;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const [titleVisible, setTitleVisible] = React.useState(true);
+    React.useEffect(() => {
+        const timer = window.setTimeout(() => setTitleVisible(false), 3000);
+        return () => window.clearTimeout(timer);
+    }, []);
     const { toast } = useToast();
     const { assignments, addMultipleAssignments, loading: assignmentsLoading } = useAssignments();
     const { courses, setCourses } = useGrades();
@@ -517,7 +522,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, [hasPersistentPortalSession, portalUrl, processSyncResultWithBreakdown, toast, user, setIsSyncing]);
 
     React.useEffect(() => {
-        if (!isUserLoaded) {
+        if (titleVisible || !isUserLoaded) {
             return;
         }
 
@@ -564,7 +569,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }
             }, 0);
         }
-    }, [announcements.length, assignments.length, assignmentsLoading, discussions.length, hasAttemptedStartupSync, hasPersistentPortalSession, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
+    }, [titleVisible, announcements.length, assignments.length, assignmentsLoading, discussions.length, hasAttemptedStartupSync, hasPersistentPortalSession, isUserLoaded, portalLoading, portalUrl, runPortalSync, user]);
 
     React.useEffect(() => {
         const handleUnload = () => {
@@ -705,6 +710,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const pageTitle = pageTitles[pathname] || "";
 
     const showSyncOverlay = localSyncOverlay;
+
+    if (titleVisible) {
+        return (
+            <main className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-background text-center px-6">
+                <Logo className="size-24 text-primary" />
+                <h1 className="font-header text-6xl font-bold text-gradient">Agenda+</h1>
+                <p className="text-lg text-muted-foreground">Your Academic Sidekick</p>
+                <div className="flex items-center gap-2 text-primary">
+                    <Loader2 className="size-5 animate-spin" />
+                    <span>BUDD-IE is initializing…</span>
+                </div>
+            </main>
+        );
+    }
 
     return (
         <SidebarProvider>
