@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+import { parsePortalDataOnDevice } from "@/lib/portal-sync-client";
+const nativePortal = registerPlugin<{ open(options: { url: string; automatic?: boolean }): Promise<{ text: string }> }>("PortalSync");
 import {
     ArrowLeft,
     Book,
@@ -373,8 +375,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const runPortalSync = React.useCallback(async (mode: "startup" | "manual" | "background") => {
         setSyncError(null);
         if (!mountedRef.current) return;
-        // Mobile static builds have no Node/Puppeteer backend. Use the existing local import flow.
-        if (["android", "ios"].includes(Capacitor.getPlatform())) {
+        if (Capacitor.getPlatform() === "android") {
+            if (syncingRef.current) return;
+            syncingRef.current = true;
+            try {
+                const { text } = await nativePortal.open({ url: portalUrl.trim(), automatic: true });
+                const imported = processSyncResultWithBreakdown(parsePortalDataOnDevice(text));
+                if (!imported.total) throw new Error("No coursework found in portal.");
+                if (mode === "manual") toast({ title: "Portal synchronized", description: `Imported ${imported.total} items.` });
+            } catch (error) {
+                if (mode === "manual") toast({ title: "Portal sync incomplete", description: error instanceof Error ? error.message : String(error), variant: "destructive" });
+            } finally {
+                syncingRef.current = false;
+            }
+            return;
+        }
+        if (Capacitor.getPlatform() === "ios") {
             if (mode === "manual") setPortalSyncOpen(true);
             return;
         }
