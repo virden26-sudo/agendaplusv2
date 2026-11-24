@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { Capacitor, registerPlugin } from "@capacitor/core";
+const nativePortal = registerPlugin<{ open(options: {url: string}): Promise<{text: string}> }>("PortalSync");
 import {
     Dialog,
     DialogContent,
@@ -49,7 +51,21 @@ export function PortalSyncDialog({
         onOpenChange(nextOpen);
     };
 
-    const handleOpenPortal = () => {
+    const handleOpenPortal = async () => {
+        if (Capacitor.getPlatform() === "android") {
+            setIsSyncing(true);
+            try {
+                const { text } = await nativePortal.open({ url: portalUrl.trim() || "https://navigate.nu.edu/d2l/home" });
+                const result = parsePortalDataOnDevice(text);
+                if (!countPortalItems(result)) throw new Error("No coursework found. Open Assignments or Calendar and retry.");
+                const count = onImported(result);
+                toast({ title: "Portal imported", description: `${count} new item(s).` });
+                handleDialogOpenChange(false);
+            } catch (error) {
+                toast({ variant: "destructive", title: "Portal sync incomplete", description: error instanceof Error ? error.message : String(error) });
+            } finally { setIsSyncing(false); }
+            return;
+        }
         openStudentPortal(portalUrl);
         setStep("paste");
         toast({
@@ -119,11 +135,15 @@ export function PortalSyncDialog({
                         Sync your school portal
                     </DialogTitle>
                     <DialogDescription>
-                        Log in to your university site, copy your assignment list, and Agenda+ handles the rest on this device.
+                        {Capacitor.getPlatform() === "android" ? "Sign in inside Agenda+, open your coursework, and import directly from the portal." : "Log in to your university site and import your coursework."}
                     </DialogDescription>
                 </DialogHeader>
 
-                {step === "login" ? (
+                {Capacitor.getPlatform() === "android" ? (
+                    <Button className="w-full h-11" disabled={isSyncing} onClick={() => void handleOpenPortal()}>
+                        {isSyncing ? "Portal open…" : "Open school portal and sync"}
+                    </Button>
+                ) : step === "login" ? (
                     <div className="space-y-4 py-2">
                         <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
                             <li>Open your student portal and sign in</li>
