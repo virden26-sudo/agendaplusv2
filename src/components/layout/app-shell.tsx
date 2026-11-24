@@ -258,21 +258,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             if (assignmentCount > 0) {
                 console.log(`AppShell: Importing ${assignmentCount} assignments...`);
-                // Replace only the assignments for the course(s) being imported, keeping others
-                const importedCourses = new Set(
-                    (result.assignments || []).map((a) => sanitizeCourseName(a.course || "Course").toLowerCase())
-                );
-                const otherCoursesAssignments = assignments.filter(
-                    (a) => !importedCourses.has(sanitizeCourseName(a.course).toLowerCase())
-                );
-                const parsedOther: ParsedAssignment[] = otherCoursesAssignments.map((a) => ({
-                    task: a.title,
-                    dueDate: a.dueDate.toISOString().split("T")[0],
-                    course: a.course,
-                    details: a.details,
-                }));
-                const combined = [...parsedOther, ...(result.assignments || [])];
-                addMultipleAssignments(combined, { replace: true });
+                // Partial portal scans must not delete existing coursework.
+                addMultipleAssignments(result.assignments || [], { replace: false });
             }
 
             if (quizCount > 0) {
@@ -387,7 +374,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             try {
                 const { text } = await nativePortal.open({ url: portalUrl.trim(), automatic: true });
                 const parsed = parsePortalDataOnDevice(text);
-                if (!(parsed.assignments.length + parsed.quizzes.length + parsed.discussions.length)) throw new Error("No coursework found in portal. Existing data retained.");
+                if (!(parsed.assignments.length + parsed.quizzes.length + parsed.discussions.length + parsed.grades.length + parsed.announcements.length)) throw new Error("No coursework found in portal. Existing data retained.");
                 const imported = processSyncResultWithBreakdown(parsed);
                 if (mode === "manual") toast({ title: "Portal synchronized", description: `Imported ${imported.total} items.` });
             } catch (error) {
