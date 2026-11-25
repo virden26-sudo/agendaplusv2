@@ -1,5 +1,6 @@
 
 "use client";
+import { useCloudCollection } from "@/lib/use-cloud-collection";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { Assignment } from '@/lib/types';
@@ -52,6 +53,7 @@ function loadStoredAssignments(): Assignment[] {
 export function AssignmentsProvider({ children }: { children: ReactNode }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  useCloudCollection("assignments", assignments, setAssignments, isInitialized, (a) => ({ ...a, dueDate: new Date(a.dueDate) }));
 
   useEffect(() => {
     setAssignments(loadStoredAssignments());

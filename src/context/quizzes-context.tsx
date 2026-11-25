@@ -1,4 +1,5 @@
 "use client";
+import { useCloudCollection } from "@/lib/use-cloud-collection";
 
 import React, {createContext, ReactNode, useCallback, useContext, useEffect, useState} from 'react';
 
@@ -53,6 +54,7 @@ function loadStoredQuizzes(): Quiz[] {
 export const QuizzesProvider = ({children}: { children: ReactNode }) => {
     const [quizzes, setQuizzes] = useState<Quiz[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
+  useCloudCollection("quizzes", quizzes, setQuizzes, isInitialized, (q) => ({ ...q, dueDate: new Date(q.dueDate) }));
 
     useEffect(() => {
         setQuizzes(loadStoredQuizzes());

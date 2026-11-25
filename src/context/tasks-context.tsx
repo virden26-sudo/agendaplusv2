@@ -1,4 +1,5 @@
 "use client";
+import { useCloudCollection } from "@/lib/use-cloud-collection";
 
 import React, {createContext, ReactNode, useCallback, useContext, useEffect, useState} from 'react';
 import type {Task} from '@/lib/types';
@@ -46,6 +47,7 @@ function loadStoredTasks(): Task[] {
 export const TasksProvider = ({children}: { children: ReactNode }) => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isInitialized, setIsInitialized] = useState(false);
+  useCloudCollection("tasks", tasks, setTasks, isInitialized, (t) => ({ ...t, dueDate: t.dueDate ? new Date(t.dueDate) : undefined }));
 
     useEffect(() => {
         setTasks(loadStoredTasks());
